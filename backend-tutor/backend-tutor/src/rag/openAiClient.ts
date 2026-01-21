@@ -119,6 +119,56 @@ export async function generateTutorCopilotAnswer(prompt: string): Promise<string
   });
 }
 
+export async function improveEmailMessage(options: {
+  originalMessage: string;
+  tutorName: string;
+  learnerName: string;
+  courseName: string;
+}): Promise<string> {
+  const { originalMessage, tutorName, learnerName, courseName } = options;
+
+  // AI-friendly context for multiple vs single learner
+  const isMultiple = learnerName.toLowerCase().includes('selected learners') ||
+    learnerName.toLowerCase().includes('students') ||
+    learnerName.toLowerCase().includes('group');
+
+  const systemPrompt = `You are an expert educational communication assistant. Your task is to rewrite tutor-to-learner email messages to be:
+
+1. PROFESSIONAL: Use formal, respectful tone appropriate for educational settings
+2. CLEAR: Preserve the tutor's original intent and message
+3. MOTIVATIONAL: Encourage and inspire the learner with positive language
+4. ACTIONABLE: Include a clear call-to-action or next step
+5. PERSONALIZED: Use the provided names and context naturally
+
+RULES:
+- Do NOT add information not implied by the original message
+- Do NOT make assumptions about course content beyond what's stated
+- Keep the message concise but warm (2-4 paragraphs ideal)
+- Always include a greeting and closing
+- Use the tutor's name in the signature
+- ${isMultiple ? "Address the recipients as 'students'" : "Address the learner by their name"}
+- Reference the course name when relevant
+- End with an encouraging call-to-action
+
+OUTPUT: Only the improved email body. No subject line, no explanations.`;
+
+  const userPrompt = `Original message from tutor: "${originalMessage}"
+
+Context:
+- Tutor name: ${tutorName}
+- Learner name: ${learnerName}
+- Course: ${courseName}
+
+Rewrite this message following the guidelines above.`;
+
+  return runChatCompletion({
+    systemPrompt,
+    userPrompt,
+    temperature: 0.7,
+    maxTokens: 500,
+  });
+}
+
 export async function classifyLearnerPersona(options: {
   responses: Array<{ question: string; answer: string }>;
 }): Promise<{ personaKey: string; reasoning: string }> {

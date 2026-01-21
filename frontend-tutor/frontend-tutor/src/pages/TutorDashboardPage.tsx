@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Mail } from 'lucide-react';
+import { Mail, Sparkles, Loader2 } from 'lucide-react';
 
 
 type TutorCourse = {
@@ -104,6 +104,7 @@ export default function TutorDashboardPage() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailFormData, setEmailFormData] = useState({ to: '' as string | string[], fullName: '', subject: '', message: '' });
   const [emailSending, setEmailSending] = useState(false);
+  const [isImprovingEmail, setIsImprovingEmail] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
 
 
@@ -469,12 +470,18 @@ export default function TutorDashboardPage() {
   const handleOpenEmailModal = (students: { email: string; fullName: string } | Array<{ email: string; fullName: string }>) => {
     if (Array.isArray(students)) {
       if (students.length === 0) return;
-      setEmailFormData({
-        to: students.map(s => s.email),
-        fullName: `${students.length} selected learners`,
-        subject: '',
-        message: ''
-      });
+
+      if (students.length === 1) {
+        // Treat single student as single even if passed as array via bulk selection
+        setEmailFormData({ to: students[0].email, fullName: students[0].fullName, subject: '', message: '' });
+      } else {
+        setEmailFormData({
+          to: students.map(s => s.email),
+          fullName: `${students.length} selected learners`,
+          subject: '',
+          message: ''
+        });
+      }
     } else {
       setEmailFormData({ to: students.email, fullName: students.fullName, subject: '', message: '' });
     }
@@ -506,6 +513,50 @@ export default function TutorDashboardPage() {
     });
 
     handleOpenEmailModal(studentsToEmail);
+  };
+
+  const handleImproveEmail = async () => {
+    if (!emailFormData.message.trim() || !headers) return;
+
+    setIsImprovingEmail(true);
+    try {
+      // Get current course name for context
+      const currentCourse = courses.find(c => c.courseId === selectedCourseId);
+      const courseName = currentCourse?.title || 'the course';
+
+      const response = await apiRequest(
+        'POST',
+        '/api/tutors/email/improve',
+        {
+          message: emailFormData.message,
+          learnerName: emailFormData.fullName,
+          courseName: courseName
+        },
+        { headers }
+      );
+
+      const data = await response.json();
+
+      if (data.improvedMessage) {
+        setEmailFormData({
+          ...emailFormData,
+          message: data.improvedMessage
+        });
+
+        toast({
+          title: 'Message improved',
+          description: 'Your message has been enhanced. Review and edit if needed before sending.'
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'AI improvement failed',
+        description: error?.message || 'Unable to improve message. Please try again.'
+      });
+    } finally {
+      setIsImprovingEmail(false);
+    }
   };
 
   const handleSendEmail = async (e: React.FormEvent) => {
@@ -1122,16 +1173,41 @@ export default function TutorDashboardPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="message" className="text-slate-700">Message</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="message" className="text-slate-700">Message</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleImproveEmail}
+                  disabled={!emailFormData.message.trim() || isImprovingEmail}
+                  className="text-xs h-7"
+                >
+                  {isImprovingEmail ? (
+                    <>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                      Improving...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-1 h-3 w-3" />
+                      AI Improve
+                    </>
+                  )}
+                </Button>
+              </div>
               <Textarea
                 id="message"
                 required
-                rows={5}
+                rows={8}
                 value={emailFormData.message}
                 onChange={(e) => setEmailFormData({ ...emailFormData, message: e.target.value })}
                 placeholder="Write your message here..."
                 className="border-slate-300"
               />
+              <p className="text-xs text-slate-500">
+                Tip: Write a brief message, then click "AI Improve" to enhance it professionally.
+              </p>
             </div>
             <DialogFooter className="pt-4">
               <Button

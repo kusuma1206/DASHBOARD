@@ -7,7 +7,7 @@ import { requireTutor } from "../middleware/requireRole";
 import { verifyPassword } from "../utils/password";
 import { createSession } from "../services/sessionService";
 import { buildTutorCourseSnapshot, formatTutorSnapshot } from "../services/tutorInsights";
-import { generateTutorCopilotAnswer } from "../rag/openAiClient";
+import { generateTutorCopilotAnswer, improveEmailMessage } from "../rag/openAiClient";
 import { sendEmail } from "../services/emailService";
 import { rateLimit } from "express-rate-limit";
 
@@ -220,14 +220,27 @@ tutorsRouter.get(
       });
 
       res.status(200).json({
-        enrollments: members.map((member) => ({
-          enrollmentId: member.memberId,
-          enrolledAt: member.addedAt,
-          status: member.status,
-          userId: member.userId,
-          fullName: member.user?.fullName || member.email.split('@')[0] || "Learner",
-          email: member.email,
-        })),
+        enrollments: members.map((member) => {
+          // If user exists, use their full name
+          // Otherwise, create a readable name from email prefix
+          let displayName = "Learner";
+          if (member.user?.fullName) {
+            displayName = member.user.fullName;
+          } else {
+            // Extract email prefix and capitalize first letter
+            const emailPrefix = member.email.split('@')[0];
+            displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+          }
+
+          return {
+            enrollmentId: member.memberId,
+            enrolledAt: member.addedAt,
+            status: member.status,
+            userId: member.userId,
+            fullName: displayName,
+            email: member.email,
+          };
+        }),
       });
       return;
     }
@@ -346,12 +359,22 @@ tutorsRouter.get(
         where: { cohortId },
         include: { user: { select: { fullName: true } } },
       });
-      targetUsers = members.map(m => ({
-        userId: m.userId,
-        email: m.email,
-        fullName: m.user?.fullName || m.email.split('@')[0] || "Learner",
-        enrolledAt: m.addedAt.toISOString()
-      }));
+      targetUsers = members.map(m => {
+        let displayName = "Learner";
+        if (m.user?.fullName) {
+          displayName = m.user.fullName;
+        } else {
+          const emailPrefix = m.email.split('@')[0];
+          displayName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+        }
+
+        return {
+          userId: m.userId,
+          email: m.email,
+          fullName: displayName,
+          enrolledAt: m.addedAt.toISOString()
+        };
+      });
     } else {
       const enrollments = await prisma.enrollment.findMany({
         where: { courseId },
@@ -415,6 +438,56 @@ tutorsRouter.get(
   }),
 );
 
+
+tutorsRouter.post(
+  "/email/improve",
+  requireAuth,
+  requireTutor,
+  asyncHandler(async (req, res) => {
+    const auth = (req as AuthenticatedRequest).auth;
+    if (!auth) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const { message, learnerName, courseName } = req.body;
+
+    // Validation
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      res.status(400).json({ message: "message is required and must be non-empty" });
+      return;
+    }
+
+    // Optional context (will use defaults if not provided)
+    const learner = learnerName || "the learner";
+    const course = courseName || "the course";
+
+    // READ-ONLY: Fetch tutor name for personalization
+    const tutor = await prisma.user.findUnique({
+      where: { userId: auth.userId },
+      select: { fullName: true },
+    });
+
+    const tutorName = tutor?.fullName || "Your Tutor";
+
+    try {
+      // Call AI service to improve message
+      const improvedMessage = await improveEmailMessage({
+        originalMessage: message.trim(),
+        tutorName,
+        learnerName: learner,
+        courseName: course,
+      });
+
+      res.status(200).json({ improvedMessage });
+    } catch (error) {
+      console.error("Failed to improve email message:", error);
+      res.status(500).json({
+        message: "AI improvement service is temporarily unavailable. Please try again."
+      });
+    }
+  })
+);
 
 tutorsRouter.post(
   "/email",
