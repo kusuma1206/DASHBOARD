@@ -666,7 +666,7 @@ export default function TutorDashboardPage() {
       return 0;
     }
     const total = learners.reduce((acc, learner) => acc + learner.percent, 0);
-    return Math.round(total / learners.length);
+    return Math.floor(total / learners.length);
   }, [progressResponse?.learners]);
 
   const navItems = [

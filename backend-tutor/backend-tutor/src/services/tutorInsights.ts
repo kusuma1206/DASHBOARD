@@ -176,13 +176,13 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
       const progress = progressByUser.get(userId);
       if (progress) {
         const completedModules = progress.passedModules.size;
-        const percent = totalModules === 0 ? 0 : Math.min(100, Math.round((completedModules / totalModules) * 100));
+        const percent = totalModules === 0 ? 0 : Math.min(100, Math.floor((completedModules / totalModules) * 100));
         totalCompletion += percent;
         validMemberCount++;
       }
     });
 
-    const averageCompletion = validMemberCount > 0 ? Math.round(totalCompletion / validMemberCount) : 0;
+    const averageCompletion = validMemberCount > 0 ? Math.floor(totalCompletion / validMemberCount) : 0;
 
     return {
       cohortId: cohort.cohortId,
@@ -219,7 +219,7 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
         const progress = progressByUser.get(enrollment.userId);
         const completedModules = progress ? progress.passedModules.size : 0;
         const percent =
-          totalModules === 0 ? 0 : Math.min(100, Math.round((completedModules / totalModules) * 100));
+          totalModules === 0 ? 0 : Math.min(100, Math.floor((completedModules / totalModules) * 100));
         return {
           userId: enrollment.userId,
           fullName: enrollment.user.fullName,
@@ -238,7 +238,7 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
       const progress = progressByUser.get(enrollment.userId);
       const completedModules = progress ? progress.passedModules.size : 0;
       const percent =
-        totalModules === 0 ? 0 : Math.min(100, Math.round((completedModules / totalModules) * 100));
+        totalModules === 0 ? 0 : Math.min(100, Math.floor((completedModules / totalModules) * 100));
       return {
         userId: enrollment.userId,
         fullName: enrollment.user.fullName,
@@ -269,7 +269,7 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
   const averageCompletion =
     learners.length === 0
       ? 0
-      : Math.round(learners.reduce((sum, learner) => sum + learner.percent, 0) / learners.length);
+      : Math.floor(learners.reduce((sum, learner) => sum + learner.percent, 0) / learners.length);
 
   return {
     course: {

@@ -91,21 +91,19 @@ export async function recordActivityEvents(userId: string, events: TelemetryEven
 }
 
 export async function getLatestStatusesForCourse(courseId: string, cohortId?: string): Promise<LearnerStatusRow[]> {
-  const cohortFilter = cohortId ? Prisma.sql`AND EXISTS (SELECT 1 FROM cohort_members cm WHERE cm.user_id = ranked.user_id AND cm.cohort_id = ${cohortId}::uuid)` : Prisma.sql``;
-
   const windowedEvents = await prisma.$queryRaw<LearnerStatusRow[]>(Prisma.sql`
     SELECT
-      ranked.event_id AS "eventId",
-      ranked.user_id AS "userId",
-      ranked.course_id AS "courseId",
+      r.event_id AS "eventId",
+      r.user_id AS "userId",
+      r.course_id AS "courseId",
       u.full_name AS "fullName",
       u.email AS "email",
-      ranked.module_no AS "moduleNo",
-      ranked.topic_id AS "topicId",
-      ranked.event_type AS "eventType",
-      ranked.derived_status AS "derivedStatus",
-      ranked.status_reason AS "statusReason",
-      ranked.created_at AS "createdAt"
+      r.module_no AS "moduleNo",
+      r.topic_id AS "topicId",
+      r.event_type AS "eventType",
+      r.derived_status AS "derivedStatus",
+      r.status_reason AS "statusReason",
+      r.created_at AS "createdAt"
     FROM (
       SELECT
         event_id,
@@ -120,10 +118,10 @@ export async function getLatestStatusesForCourse(courseId: string, cohortId?: st
         ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn
       FROM learner_activity_events
       WHERE course_id = ${courseId}::uuid
-    ) ranked
-    LEFT JOIN users u ON u.user_id = ranked.user_id
-    WHERE ranked.rn <= 20
-    ${cohortFilter}
+    ) r
+    LEFT JOIN users u ON u.user_id = r.user_id
+    WHERE r.rn <= 20
+    ${cohortId ? Prisma.sql`AND r.user_id IN (SELECT user_id FROM cohort_members WHERE cohort_id = ${cohortId}::uuid)` : Prisma.sql``}
   `);
 
   const grouped = new Map<string, LearnerStatusRow[]>();
