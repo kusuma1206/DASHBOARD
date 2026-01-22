@@ -90,7 +90,9 @@ export async function recordActivityEvents(userId: string, events: TelemetryEven
   });
 }
 
-export async function getLatestStatusesForCourse(courseId: string): Promise<LearnerStatusRow[]> {
+export async function getLatestStatusesForCourse(courseId: string, cohortId?: string): Promise<LearnerStatusRow[]> {
+  const cohortFilter = cohortId ? Prisma.sql`AND EXISTS (SELECT 1 FROM cohort_members cm WHERE cm.user_id = ranked.user_id AND cm.cohort_id = ${cohortId}::uuid)` : Prisma.sql``;
+
   const windowedEvents = await prisma.$queryRaw<LearnerStatusRow[]>(Prisma.sql`
     SELECT
       ranked.event_id AS "eventId",
@@ -121,6 +123,7 @@ export async function getLatestStatusesForCourse(courseId: string): Promise<Lear
     ) ranked
     LEFT JOIN users u ON u.user_id = ranked.user_id
     WHERE ranked.rn <= 20
+    ${cohortFilter}
   `);
 
   const grouped = new Map<string, LearnerStatusRow[]>();

@@ -288,13 +288,14 @@ export default function TutorDashboardPage() {
     isFetching: activityFetching,
     error: activityError
   } = useQuery<{ learners: ActivityLearner[]; summary: ActivitySummary }>({
-    queryKey: ['activity-summary', selectedCourseId],
+    queryKey: ['activity-summary', selectedCourseId, selectedCohortId],
     enabled: Boolean(selectedCourseId) && Boolean(headers),
     refetchInterval: 30_000,
     queryFn: async () => {
+      const url = `/api/activity/courses/${selectedCourseId}/learners${selectedCohortId ? `?cohortId=${selectedCohortId}` : ''}`;
       const response = await apiRequest(
         'GET',
-        `/api/activity/courses/${selectedCourseId}/learners`,
+        url,
         undefined,
         headers ? { headers } : undefined
       );
@@ -1047,7 +1048,7 @@ export default function TutorDashboardPage() {
                                       <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
                                         {meta.label}
                                       </Badge>
-                                      {identity?.email && (
+                                      {identity.email && (
                                         <Button
                                           variant="ghost"
                                           size="sm"
@@ -1055,7 +1056,10 @@ export default function TutorDashboardPage() {
                                           title="Email learner about this engagement issue"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            handleOpenEmailModal({ email: identity.email!, fullName: identity.fullName ?? 'Learner' });
+                                            handleOpenEmailModal({
+                                              email: identity.email as string,
+                                              fullName: identity.fullName ?? 'Learner'
+                                            });
                                           }}
                                         >
                                           <Mail className="h-4 w-4" />

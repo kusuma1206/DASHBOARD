@@ -14,12 +14,13 @@ router.get(
     requireAuth,
     asyncHandler(async (req: AuthenticatedRequest, res: any) => {
         const { courseId } = req.params;
+        const cohortId = req.query.cohortId as string | undefined;
         const { userId, role } = req.auth!;
 
         // Ensure user has access to this course's telemetry
         await ensureTutorOrAdminAccess(userId, courseId, role);
 
-        const learners = await getLatestStatusesForCourse(courseId);
+        const learners = await getLatestStatusesForCourse(courseId, cohortId);
 
         // Calculate summary
         const summary = {
