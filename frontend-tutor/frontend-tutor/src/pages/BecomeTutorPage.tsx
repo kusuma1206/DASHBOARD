@@ -11,9 +11,14 @@ import {
   Lightbulb,
   PenTool,
   Rocket,
-  X
+  X,
+  ShieldCheck,
+  TrendingUp,
+  Brain,
+  Layout,
+  MessageSquare
 } from 'lucide-react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion';
 import { buildApiUrl } from "@/lib/api";
 import { writeStoredSession, resetSessionHeartbeat } from '@/utils/session';
 import type { StoredSession } from '@/types/session';
@@ -33,6 +38,17 @@ interface TutorApplication {
 }
 
 // --- 2. Description helper (client-safe template) ---
+const THEME = {
+  bg: '#FDFCF0',      // Warm Ivory
+  primary: '#B24531', // Deep Burnt Orange
+  accent: '#E64833',  // Coral Highlights
+  text: '#1E3A47',    // Warm Charcoal
+  muted: '#1E3A47/60',
+  card: '#FFFFFF',
+  secondaryBg: '#F7F3E3' // Subtle layered section bg
+};
+
+// --- DESCRIPTION HELPER ---
 const generateCourseDescription = async (
   title: string,
   expertise: string,
@@ -48,112 +64,115 @@ const generateCourseDescription = async (
   ].join(" ");
 };
 
-// --- 3. SUB-COMPONENTS ---
+const GrainOverlay = () => (
+  <div className="fixed inset-0 pointer-events-none z-[100] opacity-[0.035]" style={{ mixBlendMode: 'multiply' }}>
+    <svg width="100%" height="100%">
+      <filter id="grain">
+        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#grain)" />
+    </svg>
+  </div>
+);
 
-// Sub-component for the Scroll-Scrubbing Number Animation
-const ScrollFillNumber = ({ number, sizeClass }: { number: string; sizeClass?: string }) => {
-  const ref = useRef<HTMLDivElement>(null);
+const SectionHeader = ({ badge, title, subline, light = false }: { badge?: string; title: string; subline?: string; light?: boolean }) => (
+  <div className="mb-16 text-center max-w-3xl mx-auto">
+    {badge && (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className={`inline-flex items-center gap-2 px-3 py-1 rounded-full mb-6 text-[10px] font-black uppercase tracking-[0.2em] ${light ? 'bg-white/10 text-white/80' : 'bg-[#B24531]/10 text-[#B24531]'}`}
+      >
+        {badge}
+      </motion.div>
+    )}
+    <motion.h3
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      className={`text-4xl md:text-5xl font-black tracking-tight mb-4 ${light ? 'text-white' : 'text-[#1E3A47]'}`}
+    >
+      {title}
+    </motion.h3>
+    {subline && (
+      <motion.p
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ delay: 0.1 }}
+        className={`text-lg font-medium max-w-2xl mx-auto ${light ? 'text-white/60' : 'text-[#1E3A47]/60'}`}
+      >
+        {subline}
+      </motion.p>
+    )}
+  </div>
+);
 
+const StepItem = ({ id, title, desc }: { id: string; title: string; desc: string }) => {
+  const ref = useRef(null);
   const { scrollYProgress } = useScroll({
     target: ref,
-    offset: ["start 90%", "center 50%"]
+    offset: ["start center", "center center", "center start"]
   });
 
-  const clipPath = useTransform(
-    scrollYProgress,
-    [0, 1],
-    ["inset(100% 0 0 0)", "inset(0% 0 0 0)"]
-  );
-
-  const baseStyles = `${sizeClass ?? "text-[8rem] md:text-[12rem]"} font-black leading-none tracking-tighter select-none m-0 p-0`;
+  const opacity = useTransform(scrollYProgress, [0, 0.4, 0.6, 1], [0.15, 1, 1, 0.15]);
+  const scale = useTransform(scrollYProgress, [0, 0.4, 0.6, 1], [0.95, 1, 1, 0.95]);
+  const fillProgress = useTransform(scrollYProgress, [0, 0.45, 0.55, 1], [0, 1, 1, 1]);
 
   return (
-    <div ref={ref} className="relative inline-flex items-center">
-      {/* Background Layer (Outline) */}
-      <div
-        className={`${baseStyles} text-transparent`}
-        style={{
-          WebkitTextStroke: '3px rgba(30, 58, 71, 0.1)',
-          letterSpacing: '-0.05em'
-        }}
-      >
-        {number}
-      </div>
-
-      {/* Foreground Layer (Fill) */}
-      <motion.div
-        className="absolute inset-0 pointer-events-none flex items-center"
-        style={{ clipPath }}
-      >
-        <div
-          className={`${baseStyles} text-[#E5583E]`}
+    <motion.div
+      ref={ref}
+      style={{ opacity, scale }}
+      className="flex flex-col md:flex-row items-center gap-12 md:gap-24 py-16 border-b border-[#1E3A47]/5 last:border-0"
+    >
+      <div className="relative flex-shrink-0">
+        <div className="text-[10rem] md:text-[12rem] font-black leading-none select-none relative"
           style={{
-            WebkitTextStroke: '3px #E5583E', // Match background stroke exactly
+            WebkitTextStroke: '2px rgba(30, 58, 71, 0.08)',
+            color: 'transparent',
             letterSpacing: '-0.05em'
           }}
         >
-          {number}
+          {id}
+          <motion.div
+            className="absolute bottom-0 left-0 right-0 overflow-hidden text-[#B24531] pointer-events-none"
+            style={{
+              height: useTransform(fillProgress, [0, 1], ["0%", "100%"])
+            }}
+          >
+            <div className="text-[10rem] md:text-[12rem] font-black leading-none absolute bottom-0"
+              style={{ letterSpacing: '-0.05em' }}
+            >
+              {id}
+            </div>
+          </motion.div>
         </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const ScrollRevealItem = ({ title, desc }: { title: string; desc: string }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "center center", "center center", "end start"]
-  });
-
-  const opacity = useTransform(scrollYProgress, [0, 0.25, 0.75, 1], [0.1, 1, 1, 0.1]);
-  const y = useTransform(scrollYProgress, [0, 0.25, 0.75, 1], [20, 0, 0, -20]);
-
-  return (
-    <motion.div
-      ref={ref}
-      style={{ opacity, y }}
-      className="border-b border-[#1E3A47]/10 pb-12 last:border-b-0 last:pb-0"
-    >
-      <h4 className="text-2xl md:text-3xl font-bold text-[#E5583E] tracking-tight mb-4">
-        {title}
-      </h4>
-      <p className="text-lg md:text-xl text-[#1E3A47]/80 font-medium leading-relaxed whitespace-pre-line">
-        {desc}
-      </p>
-    </motion.div>
-  );
-};
-
-const ScrollRevealTutorJourneyStep = ({ id, title, desc }: { id: string; title: string; desc: string }) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start end", "center center", "center center", "end start"]
-  });
-
-  const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0.1, 1, 1, 0.1]);
-  const y = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [30, 0, 0, -30]);
-
-  return (
-    <motion.div
-      ref={ref}
-      style={{ opacity, y }}
-      className="flex flex-col md:flex-row md:items-center gap-12 border-b border-[#1E3A47]/10 pb-12 last:border-b-0"
-    >
-      <div className="flex items-center justify-start">
-        <ScrollFillNumber number={id} sizeClass="text-6xl md:text-[120px]" />
       </div>
-      <div className="flex-1">
-        <h4 className="text-3xl md:text-4xl font-black text-[#1E3A47] transition-colors duration-300">
+      <div className="flex-1 text-center md:text-left">
+        <h4 className="text-3xl md:text-5xl font-black text-[#1E3A47] tracking-tighter leading-[0.85] max-w-xl">
           {title}
         </h4>
-        <p className="text-lg text-[#1E3A47]/70 mt-2 font-medium leading-relaxed">
+        <p className="mt-6 text-lg md:text-xl text-[#1E3A47]/40 font-bold max-w-2xl leading-relaxed">
           {desc}
         </p>
       </div>
     </motion.div>
   );
+};
+
+// --- REVEAL VARIANTS ---
+const revealVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.8,
+      ease: "easeOut"
+    }
+  }
 };
 
 // --- 4. MAIN COMPONENT ---
@@ -392,291 +411,352 @@ const BecomeTutor: React.FC = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#FFFBF5] text-[#1E3A47] overflow-x-hidden font-sans">
-      {/* Inject Custom Styles locally so this file is copy-pasteable */}
-      <style>{`
-        /* Typewriter Animation */
-        .typewriter-cursor::after {
-          content: '|';
-          animation: blink 1s step-start infinite;
-          color: #E5583E;
-        }
-        @keyframes blink { 50% { opacity: 0; } }
+    <div className="w-full min-h-screen bg-[#FDFCF0] text-[#1E3A47] overflow-x-hidden font-sans">
+      <GrainOverlay />
 
-        /* Scroll Reveal Base */
-        .reveal {
-          opacity: 0;
-          transform: translateY(30px);
-          transition: all 1s cubic-bezier(0.5, 0, 0, 1);
-        }
-        .reveal.active {
-          opacity: 1;
-          transform: translateY(0);
-        }
-        .stagger-1 { transition-delay: 150ms; }
-        .stagger-2 { transition-delay: 300ms; }
-        .stagger-3 { transition-delay: 450ms; }
-        
-        /* Custom Scrollbar for this page */
-        ::-webkit-scrollbar { width: 10px; }
-        ::-webkit-scrollbar-track { background: #FFFBF5; }
-        ::-webkit-scrollbar-thumb { background: #E5583E; border-radius: 5px; border: 2px solid #FFFBF5; }
-        ::-webkit-scrollbar-thumb:hover { background: #C03520; }
-      `}</style>
+      {/* Hero Section */}
+      <motion.section
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={revealVariants}
+        className="relative pt-32 pb-24 px-6 md:px-12 overflow-hidden"
+      >
+        {/* Ambient Hero Background */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1400px] h-full pointer-events-none">
+          <div className="absolute top-[-10%] left-[20%] w-[60%] h-[80%] rounded-full bg-orange-100/30 blur-[120px]" />
+          <div className="absolute bottom-0 right-[10%] w-[40%] h-[60%] rounded-full bg-amber-50/20 blur-[100px]" />
+        </div>
 
-      {/* --- Header Section --- */}
-      <section className="pt-32 pb-8 px-6 md:px-12 max-w-[1400px] mx-auto flex flex-col items-center text-center">
-        <div className="max-w-4xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#E5583E]/10 text-[#E5583E] text-[10px] md:text-xs font-black uppercase tracking-widest mb-6 reveal">
+        <div className="max-w-[1400px] mx-auto text-center relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-8 text-[10px] font-black uppercase tracking-[0.2em] bg-[#B24531]/10 text-[#B24531]"
+          >
             New Cohort 2026
-          </div>
+          </motion.div>
 
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-[#1E3A47] tracking-tight mb-6 leading-tight min-h-[1.4em]">
-            <span className="typewriter-cursor">{typedText}</span>
-          </h1>
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-5xl md:text-7xl lg:text-8xl font-black text-[#1E3A47] tracking-tighter mb-10 leading-[0.9] md:leading-[1.1] min-h-[1.2em]"
+          >
+            {typedText}
+          </motion.h1>
 
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="space-y-12"
+          >
+            <p className="text-xl md:text-2xl text-[#1E3A47]/60 font-medium max-w-2xl mx-auto leading-relaxed">
+              Built with AI-powered tools, transparent earnings, and full creator control.
+            </p>
 
-
-          <p className="mt-1 text-sm md:text-base text-[#1E3A47]/50 font-medium reveal stagger-1 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            Built with AI-powered tools, transparent earnings, and full creator control.
-          </p>
-
-          <div className="flex flex-col items-center gap-6 mt-6 reveal stagger-2">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
-              <button
-                type="button"
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+              <motion.button
+                whileHover={{ y: -4, scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => document.getElementById('apply-form')?.scrollIntoView({ behavior: 'smooth' })}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-10 py-4 bg-[#E5583E] text-white font-bold text-sm uppercase tracking-widest shadow-xl shadow-[#E5583E]/20 transition hover:-translate-y-1 hover:bg-[#C03520] active:scale-95"
+                className="group relative w-full sm:w-auto px-10 py-5 bg-[#B24531] text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-2xl shadow-[#B24531]/20 overflow-hidden"
               >
-                Apply as Tutor
-              </button>
-              <button
-                type="button"
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 group-hover:translate-x-full transition-transform duration-1000 -translate-x-full" />
+                <span className="relative">Apply as Tutor</span>
+                {/* Subtle Pulse */}
+                <span className="absolute inset-0 rounded-2xl bg-[#B24531] animate-ping opacity-20 scale-110 pointer-events-none" />
+              </motion.button>
+
+              <motion.button
+                whileHover={{ y: -4, backgroundColor: 'rgba(30, 58, 71, 0.05)' }}
+                whileTap={{ scale: 0.98 }}
                 onClick={openLoginModal}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full px-10 py-4 border-2 border-[#1E3A47]/20 text-[#1E3A47] font-bold text-sm uppercase tracking-widest transition hover:bg-[#1E3A47]/5 hover:border-[#1E3A47]/40 active:scale-95"
+                className="w-full sm:w-auto px-10 py-5 border-2 border-[#1E3A47]/10 text-[#1E3A47] font-black text-sm uppercase tracking-widest rounded-2xl transition-all"
               >
                 Tutor Login
-              </button>
+              </motion.button>
             </div>
 
-            <p className="text-xs md:text-sm text-[#1E3A47]/40 font-semibold tracking-wide flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-[#E5583E]/40" />
-              “No upfront costs. No exclusivity. You stay in control.”
-              <span className="w-1 h-1 rounded-full bg-[#E5583E]/40" />
-            </p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="text-sm text-[#1E3A47]/40 font-bold tracking-[0.2em] uppercase flex items-center justify-center gap-4"
+            >
+              <span className="w-8 h-[1px] bg-[#1E3A47]/20" />
+              No upfront costs. No exclusivity. You stay in control.
+              <span className="w-8 h-[1px] bg-[#1E3A47]/20" />
+            </motion.p>
+          </motion.div>
+        </div>
+      </motion.section>
+
+      {/* Why Teach Section */}
+      <motion.section
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={revealVariants}
+        className="py-16 px-6 md:px-12 bg-[#F7F3E3]"
+      >
+        <div className="max-w-[1400px] mx-auto">
+          <SectionHeader
+            title="Why teach with us?"
+            subline="We provide the tools and transparency for you to scale your impact."
+          />
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {[
+              {
+                icon: <Layout className="w-6 h-6" />,
+                title: "Create or Delegate",
+                desc: "Design and own your content end-to-end. If you request our team to create content for you, this service is chargeable."
+              },
+              {
+                icon: <TrendingUp className="w-6 h-6" />,
+                title: "Earn Transparently",
+                desc: "Earn through a revenue split based on course performance. 80/20 split with your APIs, 70/30 with platform APIs."
+              },
+              {
+                icon: <Brain className="w-6 h-6" />,
+                title: "Grow With AI",
+                desc: "AI-assisted follow-up messaging that helps tutors communicate clearly and professionally with students."
+              },
+              {
+                icon: <BarChart3 className="w-6 h-6" />,
+                title: "Track Everything",
+                desc: "Monitor enrollments, engagement, payouts, and learner follow-ups in real time."
+              }
+            ].map((item, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
+                className="p-8 rounded-[2rem] bg-white border border-[#1E3A47]/5 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-500"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-[#B24531]/5 flex items-center justify-center text-[#B24531] mb-6">
+                  {item.icon}
+                </div>
+                <h4 className="text-xl font-black text-[#1E3A47] mb-4">{item.title}</h4>
+                <p className="text-[#1E3A47]/60 font-medium leading-relaxed text-sm">
+                  {item.desc}
+                </p>
+              </motion.div>
+            ))}
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* --- Why Teach Section (Interactive List) --- */}
-      <section className="pt-12 pb-24 px-6 md:px-12 max-w-[1000px] mx-auto text-center">
-        <div className="mb-12 reveal">
-          <h3 className="text-4xl md:text-5xl font-black text-[#1E3A47] tracking-tight mb-4">Why teach with us?</h3>
+      {/* Step Flow Section - Scroll-Linked Highlighting */}
+      <motion.section
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={revealVariants}
+        className="py-20 px-6 md:px-12 bg-white relative"
+      >
+        <div className="max-w-[1200px] mx-auto relative z-10">
+          <SectionHeader
+            badge="The Process"
+            title="How it works"
+          />
+
+          <div className="space-y-0">
+            {[
+              {
+                id: "01",
+                title: "Submit Idea",
+                desc: "Validate demand using platform insights."
+              },
+              {
+                id: "02",
+                title: "Design Syllabus",
+                desc: "Collaborate with curriculum experts and AI assistance."
+              },
+              {
+                id: "03",
+                title: "Launch & Earn",
+                desc: "Track engagement, performance, payouts, and learner follow-ups in real time."
+              }
+            ].map((step) => (
+              <StepItem key={step.id} {...step} />
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Intelligence Spotlight */}
+      <motion.section
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={revealVariants}
+        className="py-20 px-6 md:px-12 bg-[#B24531] text-white overflow-hidden relative"
+      >
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
         </div>
 
-        <div className="space-y-16 text-left">
-          {[
-            {
-              title: "Create or Delegate",
-              desc: "Design and own your content end-to-end.\nIf you request our team to create content for you, this service is chargeable."
-            },
-            {
-              title: "Earn Transparently",
-              desc: "Earn through a revenue split based on course performance.\n• 80/20 split when the tutor provides required API keys.\n• 70/30 split when platform-managed APIs are used."
-            },
-            {
-              title: "Grow With AI",
-              desc: "AI-assisted follow-up messaging that helps tutors communicate clearly and professionally with students."
-            },
-            {
-              title: "Track Everything",
-              desc: "Monitor enrollments, engagement, payouts, and learner follow-ups in real time."
-            }
-          ].map((item, idx) => (
-            <ScrollRevealItem
-              key={idx}
-              title={item.title}
-              desc={item.desc}
-            />
-          ))}
+        <div className="max-w-[1400px] mx-auto text-center relative z-10">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="inline-flex items-center gap-2 mb-12"
+          >
+            <Sparkles className="w-6 h-6 text-amber-300 animate-pulse" />
+            <span className="text-xs font-black uppercase tracking-[0.4em] text-white/60">Intelligence Spotlight</span>
+          </motion.div>
+
+          <motion.h3
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-3xl md:text-6xl font-black max-w-5xl mx-auto leading-[1.15] tracking-tight"
+          >
+            “Know who needs attention, when to intervene, and how to follow up — automatically.”
+          </motion.h3>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.3 }}
+            className="mt-12 text-sm font-bold tracking-[0.3em] uppercase text-white/40"
+          >
+            AI-Driven Tutor Dashboard
+          </motion.p>
         </div>
-      </section>
+      </motion.section>
 
-      {/* --- How It Works Section (Three-step billboard) --- */}
-      <section className="bg-[#FFFBF5] pt-24 pb-4 overflow-hidden">
-        <div className="max-w-[1000px] mx-auto px-6 md:px-12 space-y-24">
-          {[
-            { id: "01", title: "Submit Idea", desc: "Validate demand using platform insights." },
-            { id: "02", title: "Design Syllabus", desc: "Collaborate with curriculum experts and AI assistance." },
-            { id: "03", title: "Launch & Earn", desc: "Track engagement, performance, payouts, and learner follow-ups in real time." },
-          ].map((step) => (
-            <ScrollRevealTutorJourneyStep
-              key={step.id}
-              id={step.id}
-              title={step.title}
-              desc={step.desc}
-            />
-          ))}
-        </div>
-      </section>
+      {/* Application Form Section */}
+      <motion.section
+        id="apply-form"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.05 }}
+        variants={revealVariants}
+        className="py-24 px-6 md:px-12 bg-[#B24531] relative scroll-mt-20"
+      >
+        <div className="absolute top-0 left-0 w-full h-1/2 bg-white pointer-events-none" />
 
-      {/* --- AI & Dashboard Confidence Cue --- */}
-      <section className="pt-8 pb-32 px-6 md:px-12 max-w-[1400px] mx-auto text-center reveal">
-        <div className="inline-flex items-center gap-2 mb-8 text-[#E5583E]">
-          <Sparkles size={24} className="animate-pulse" />
-          <span className="text-xs font-black uppercase tracking-[0.3em]">Intelligence Spotlight</span>
-        </div>
-        <h3 className="text-3xl md:text-5xl font-black text-[#1E3A47] max-w-4xl mx-auto leading-tight">
-          “Know who needs attention, when to intervene, and how to follow up — automatically.”
-        </h3>
-        <p className="mt-8 text-[#1E3A47]/40 text-sm font-medium tracking-widest uppercase">
-          AI-Driven Tutor Dashboard
-        </p>
-      </section>
+        <div className="max-w-[1400px] mx-auto relative z-10">
+          <SectionHeader
+            badge="Join the Team"
+            title="Ready to make an impact?"
+            subline="Fill out the form below to apply. We review every application personally."
+          />
 
-      {/* --- Application Form Section (Red Background) --- */}
-      <div id="apply-form" className="w-full bg-[#C03520] py-24 relative z-10 scroll-mt-20">
-        <div className="text-center mb-12 reveal">
-          <h3 className="text-[#FFFBF5]/80 text-sm font-black uppercase tracking-[0.2em] mb-4">Join the Team</h3>
-          <p className="text-[#FFFBF5] text-3xl md:text-4xl font-black">Ready to make an impact?</p>
-        </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="bg-white rounded-[3rem] p-8 md:p-16 shadow-2xl shadow-black/10 border border-[#1E3A47]/5"
+          >
+            <form onSubmit={handleSubmit} className="space-y-16">
+              {/* Personal Details */}
+              <div className="space-y-8">
+                <div className="flex items-center gap-4 border-b border-[#1E3A47]/10 pb-4">
+                  <ShieldCheck className="w-5 h-5 text-[#B24531]" />
+                  <h4 className="text-xs font-black uppercase tracking-widest text-[#B24531]">Personal Details</h4>
+                </div>
 
-        <section className="px-6 md:px-12 max-w-[1400px] mx-auto">
-          <div className="bg-[#FFFBF5] rounded-[2.5rem] p-8 md:p-16 shadow-2xl shadow-black/20 reveal">
-            <div className="mb-12 text-center max-w-3xl mx-auto">
-              <h2 className="text-4xl md:text-6xl font-black text-[#1E3A47] mb-6 tracking-tight">Start your journey.</h2>
-              <p className="text-lg md:text-xl text-[#1E3A47]/60 font-medium">Fill out the form below to apply. We review every application personally.</p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="w-full max-w-5xl mx-auto">
-
-              {/* Personal Details Row */}
-              <div className="mb-12">
-                <h3 className="text-[#E5583E] text-xs font-black uppercase tracking-widest mb-8 border-b border-[#1E3A47]/10 pb-3">Personal Details</h3>
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 w-full">
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Full Name</label>
-                    <input
-                      type="text"
-                      name="fullName"
-                      value={formData.fullName}
-                      onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm"
-                      placeholder="John Doe"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Email Address</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm"
-                      placeholder="john@example.com"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Phone Number</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm"
-                      placeholder="+1 (555) 000-0000"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Professional Headline</label>
-                    <input
-                      type="text"
-                      name="headline"
-                      value={formData.headline}
-                      onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm"
-                      placeholder="Sr. AI Engineer"
-                    />
-                  </div>
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                  {[
+                    { label: 'Full Name', name: 'fullName', type: 'text', placeholder: 'John Doe' },
+                    { label: 'Email Address', name: 'email', type: 'email', placeholder: 'john@example.com' },
+                    { label: 'Phone Number', name: 'phone', type: 'tel', placeholder: '+1 (555) 000-0000' },
+                    { label: 'Professional Headline', name: 'headline', type: 'text', placeholder: 'Sr. AI Engineer' }
+                  ].map((field) => (
+                    <div key={field.name} className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">{field.label}</label>
+                      <input
+                        type={field.type}
+                        name={field.name}
+                        value={(formData as any)[field.name]}
+                        onChange={handleChange}
+                        className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                        placeholder={field.placeholder}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Expertise Row */}
-              <div className="mb-12">
-                <h3 className="text-[#E5583E] text-xs font-black uppercase tracking-widest mb-8 border-b border-[#1E3A47]/10 pb-3">Expertise</h3>
-                <div className="grid md:grid-cols-2 gap-6 w-full">
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Area of Expertise</label>
+              {/* Expertise & Proposal */}
+              <div className="space-y-8">
+                <div className="flex items-center gap-4 border-b border-[#1E3A47]/10 pb-4">
+                  <Brain className="w-5 h-5 text-[#B24531]" />
+                  <h4 className="text-xs font-black uppercase tracking-widest text-[#B24531]">Expertise & Proposal</h4>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Area of Expertise</label>
                     <input
                       type="text"
                       name="expertiseArea"
                       value={formData.expertiseArea}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm"
+                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. LLMs, Python, Computer Vision"
                     />
                   </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Years of Experience</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Years of Experience</label>
                     <input
                       type="number"
                       name="yearsExperience"
                       value={formData.yearsExperience}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm"
+                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. 5"
                     />
                   </div>
-                </div>
-              </div>
-
-              {/* Course Proposal Row */}
-              <div className="mb-12">
-                <h3 className="text-[#E5583E] text-xs font-black uppercase tracking-widest mb-8 border-b border-[#1E3A47]/10 pb-3">Course Proposal</h3>
-                <div className="grid md:grid-cols-2 gap-6 mb-6">
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Proposed Course Title</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Proposed Course Title</label>
                     <input
                       type="text"
                       name="courseTitle"
                       value={formData.courseTitle}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm"
+                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. Advanced RAG Systems"
                     />
                   </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Availability</label>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Availability</label>
                     <div className="relative">
                       <select
                         name="availability"
                         value={formData.availability}
                         onChange={handleChange}
-                        className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold appearance-none focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all cursor-pointer shadow-sm"
+                        className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold appearance-none focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all cursor-pointer"
                       >
                         <option value="">Select availability</option>
                         <option value="immediate">Immediately</option>
                         <option value="1month">In 1 month</option>
                         <option value="3months">In 3 months</option>
                       </select>
-                      <div className="absolute right-5 top-1/2 transform -translate-y-1/2 pointer-events-none text-[#1E3A47]">
-                        <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M1 1L6 6L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-[#B24531]">
+                        <ArrowRight className="w-4 h-4 rotate-90" />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Course Description</label>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40">Course Description</label>
                       <button
                         type="button"
                         onClick={handleAiGenerate}
                         disabled={isGenerating}
-                        className="flex items-center gap-2 text-[10px] font-black text-[#E5583E] hover:text-[#C03520] disabled:opacity-50 transition-colors uppercase tracking-widest bg-[#E5583E]/10 px-3 py-1 rounded-full hover:bg-[#E5583E]/20"
+                        className="flex items-center gap-2 text-[10px] font-black text-[#B24531] hover:text-[#E64833] disabled:opacity-50 transition-colors uppercase tracking-widest bg-[#B24531]/5 px-3 py-1 rounded-full"
                       >
                         {isGenerating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
                         {isGenerating ? 'Thinking...' : 'AI Assist'}
@@ -684,21 +764,21 @@ const BecomeTutor: React.FC = () => {
                     </div>
                     <textarea
                       name="courseDescription"
-                      rows={5}
+                      rows={4}
                       value={formData.courseDescription}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm resize-none"
+                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
                       placeholder="Briefly describe the curriculum..."
                     />
                   </div>
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold text-[#1E3A47] uppercase tracking-wide">Target Audience</label>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1 pt-1 block">Target Audience</label>
                     <textarea
                       name="targetAudience"
-                      rows={5}
+                      rows={4}
                       value={formData.targetAudience}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#E5583E]/20 rounded-xl px-5 py-4 text-[#1E3A47] text-base font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10 transition-all shadow-sm resize-none"
+                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
                       placeholder="Who is this for?"
                     />
                   </div>
@@ -706,100 +786,141 @@ const BecomeTutor: React.FC = () => {
               </div>
 
               {/* Submit Action */}
-              <div className="flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-[#1E3A47]/10">
-                <div className="flex items-start gap-3 text-[#1E3A47]/60">
-                  <CheckCircle2 size={20} className="text-[#E5583E] shrink-0 mt-0.5" />
-                  <p className="text-sm font-medium leading-relaxed">
-                    By submitting, you agree to our Terms. <br />
-                    We respect your privacy.
+              <div className="flex flex-col md:flex-row items-center justify-between gap-12 pt-12 border-t border-[#1E3A47]/10">
+                <div className="flex items-start gap-4 text-[#1E3A47]/40 max-w-sm">
+                  <CheckCircle2 size={24} className="text-[#B24531] shrink-0" />
+                  <p className="text-xs font-medium leading-relaxed">
+                    By submitting, you agree to our Terms. We review every application personally within 48 hours.
                   </p>
                 </div>
-                <div className="flex flex-col gap-3 w-full md:w-auto">
-                  <button
+
+                <div className="w-full md:w-auto text-center md:text-right space-y-4">
+                  <motion.button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full md:w-auto px-12 py-5 bg-[#C03520] hover:bg-[#A02C1B] disabled:bg-[#C03520]/60 text-[#FFFBF5] font-black text-lg rounded-xl shadow-lg shadow-[#C03520]/20 transition-all flex items-center justify-center gap-3 hover:-translate-y-1 active:scale-95 disabled:cursor-not-allowed"
+                    whileHover={{ y: -4, scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full md:w-auto px-16 py-6 bg-[#B24531] text-white font-black text-lg rounded-2xl shadow-2xl shadow-[#B24531]/20 transition-all flex items-center justify-center gap-4 disabled:opacity-50"
                   >
                     {isSubmitting ? "Submitting..." : "Submit Application"}
                     {!isSubmitting && <ArrowRight size={20} strokeWidth={3} />}
-                  </button>
+                  </motion.button>
                   {submitMessage && (
-                    <p className="text-sm text-[#FFFBF5]/90 md:text-left text-center">{submitMessage}</p>
+                    <p className={`text-sm font-bold ${submitMessage.includes('successfully') ? 'text-emerald-600' : 'text-[#B24531]'}`}>
+                      {submitMessage}
+                    </p>
                   )}
                 </div>
               </div>
-
             </form>
-          </div>
-        </section>
-      </div>
-      {showLoginModal && (
-        <div className="fixed inset-0 z-[60] bg-[#0F172A]/70 backdrop-blur-sm px-6 flex items-center justify-center">
-          <div className="relative w-full max-w-lg rounded-3xl bg-white p-8 shadow-2xl text-left">
-            <button
-              type="button"
-              onClick={closeLoginModal}
-              className="absolute right-4 top-4 text-[#1E3A47]/60 hover:text-[#1E3A47] transition"
-              aria-label="Close login dialog"
-            >
-              <X size={22} />
-            </button>
-            <div className="space-y-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.4em] text-[#E5583E]">
-                Tutor Console
-              </p>
-              <h3 className="text-3xl font-black text-[#1E3A47]">Tutor login</h3>
-              <p className="text-sm text-[#1E3A47]/70">
-                Access your courses, enrollments, and learner progress.
-              </p>
-            </div>
-            <form className="mt-8 space-y-5" onSubmit={handleTutorLogin}>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-[#1E3A47]">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(event) => setLoginEmail(event.target.value)}
-                  className="w-full rounded-2xl border-2 border-transparent bg-[#F8F9FB] px-4 py-4 text-[#1E3A47] font-semibold placeholder:text-[#1E3A47]/30 focus:border-[#E5583E]/40 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10"
-                  placeholder="you@ottolearn.com"
-                  autoComplete="email"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wide text-[#1E3A47]">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(event) => setLoginPassword(event.target.value)}
-                  className="w-full rounded-2xl border-2 border-transparent bg-[#F8F9FB] px-4 py-4 text-[#1E3A47] font-semibold placeholder:text-[#1E3A47]/30 focus:border-[#E5583E]/40 focus:outline-none focus:ring-4 focus:ring-[#E5583E]/10"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                />
-              </div>
-              {loginError && (
-                <p className="text-sm font-semibold text-[#C03520] bg-[#FEECEC] rounded-2xl px-4 py-2">
-                  {loginError}
-                </p>
-              )}
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full rounded-2xl bg-[#E5583E] py-4 text-sm font-black uppercase tracking-widest text-white shadow-lg shadow-[#E5583E]/20 transition hover:-translate-y-0.5 hover:bg-[#C03520] disabled:bg-[#E5583E]/40 disabled:cursor-not-allowed"
-              >
-                {isLoggingIn ? "Signing in..." : "Login as tutor"}
-              </button>
-              <p className="text-center text-xs text-[#1E3A47]/60">
-                Need an account? Contact the program team to be onboarded.
-              </p>
-            </form>
-          </div>
+          </motion.div>
         </div>
-      )}
+      </motion.section>
+
+      {/* Login Modal */}
+      <AnimatePresence>
+        {showLoginModal && (
+          <div className="fixed inset-0 z-[100] px-6 flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={closeLoginModal}
+              className="absolute inset-0 bg-[#1E3A47]/40 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg rounded-[3rem] bg-[#FDFCF0] p-12 shadow-2xl text-left border border-[#1E3A47]/5"
+            >
+              <button
+                type="button"
+                onClick={closeLoginModal}
+                className="absolute right-8 top-8 text-[#1E3A47]/40 hover:text-[#B24531] transition-colors"
+              >
+                <X size={24} />
+              </button>
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#B24531]">
+                  Tutor Console
+                </p>
+                <h3 className="text-4xl font-black text-[#1E3A47] tracking-tight">Welcome back</h3>
+                <p className="text-sm text-[#1E3A47]/60 font-medium">
+                  Access your courses, enrollments, and learner progress.
+                </p>
+              </div>
+
+              <form className="mt-12 space-y-6" onSubmit={handleTutorLogin}>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="w-full rounded-2xl border-2 border-transparent bg-white px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:border-[#B24531]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                    placeholder="you@ottolearn.com"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="w-full rounded-2xl border-2 border-transparent bg-white px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:border-[#B24531]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
+
+                {loginError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-xs font-bold text-[#B24531] bg-[#B24531]/5 rounded-xl px-4 py-3"
+                  >
+                    {loginError}
+                  </motion.p>
+                )}
+
+                <motion.button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  whileHover={{ y: -4 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full rounded-2xl bg-[#B24531] py-5 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-[#B24531]/20 transition-all disabled:opacity-50"
+                >
+                  {isLoggingIn ? "Signing in..." : "Login to Console"}
+                </motion.button>
+
+                <p className="text-center text-[10px] font-bold text-[#1E3A47]/40 uppercase tracking-widest">
+                  Protected by OttoLearn Security
+                </p>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Footer Branding */}
+      <motion.footer
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={revealVariants}
+        className="py-12 bg-[#FDFCF0] text-center border-t border-[#1E3A47]/5"
+      >
+        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-[#1E3A47]/20">
+          Ottolearn Tutor Platform © 2026
+        </p>
+      </motion.footer>
     </div>
   );
 };

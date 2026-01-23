@@ -23,6 +23,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useEmailSelection } from '@/hooks/useEmailSelection';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 type TutorCourse = {
@@ -139,9 +147,11 @@ export default function TutorDashboardPage() {
   const [emailFormData, setEmailFormData] = useState({ to: '' as string | string[], fullName: '', subject: '', message: '' });
   const [emailSending, setEmailSending] = useState(false);
   const [isImprovingEmail, setIsImprovingEmail] = useState(false);
-  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+  const alertSelection = useEmailSelection();
+  const enrollmentSelection = useEmailSelection();
   const [isAssistantSheetOpen, setIsAssistantSheetOpen] = useState(false);
   const assistantChatRef = useRef<HTMLDivElement>(null);
+  const lastMessageRef = useRef<HTMLDivElement>(null);
 
   const QUICK_PROMPTS = [
     "Which learners are inactive this week?",
@@ -149,12 +159,21 @@ export default function TutorDashboardPage() {
     "Show engagement trends for my classes"
   ];
 
-  // Auto-scroll to bottom of assistant chat
-  useEffect(() => {
+  // Manual scroll control for assistant chat
+  const scrollAssistantToBottom = () => {
     if (assistantChatRef.current) {
-      assistantChatRef.current.scrollTop = assistantChatRef.current.scrollHeight;
+      assistantChatRef.current.scrollTo({
+        top: assistantChatRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
-  }, [assistantMessages, assistantLoading, isAssistantSheetOpen]);
+  };
+
+  const scrollAssistantToLastMessage = () => {
+    if (lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   useEffect(() => {
     if (!session) {
@@ -480,6 +499,9 @@ export default function TutorDashboardPage() {
     setAssistantInput('');
     setAssistantLoading(true);
 
+    // Scroll to bottom when user sends a question
+    setTimeout(scrollAssistantToBottom, 100);
+
     try {
       const response = await apiRequest(
         'POST',
@@ -495,6 +517,9 @@ export default function TutorDashboardPage() {
         timestamp: new Date().toISOString()
       };
       setAssistantMessages((prev) => [...prev, assistantMessage]);
+
+      // Scroll to the top of the NEW assistant's response
+      setTimeout(scrollAssistantToLastMessage, 100);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -532,24 +557,17 @@ export default function TutorDashboardPage() {
     setIsEmailModalOpen(true);
   };
 
-  const toggleEmailSelection = (email: string) => {
-    setSelectedEmails(prev => {
-      const next = new Set(prev);
-      if (next.has(email)) next.delete(email);
-      else next.add(email);
-      return next;
-    });
-  };
+  const handleBulkEmail = (source: 'alert' | 'enrollment') => {
+    const selection = source === 'alert' ? alertSelection : enrollmentSelection;
+    const studentsToEmail: { email: string; fullName: string }[] = [];
 
-  const handleBulkEmail = () => {
-    const studentsToEmail = [];
     // Gather details for selected emails from reachable data
     const allLearners = [
       ...(enrollmentsResponse?.enrollments ?? []),
       ...(progressResponse?.learners ?? [])
     ];
 
-    selectedEmails.forEach(email => {
+    selection.selectedEmails.forEach(email => {
       const learner = allLearners.find(l => l.email === email);
       if (learner) {
         studentsToEmail.push({ email: learner.email, fullName: learner.fullName });
@@ -626,7 +644,8 @@ export default function TutorDashboardPage() {
           : `Your message to ${emailFormData.fullName} has been sent.`
       });
       setIsEmailModalOpen(false);
-      setSelectedEmails(new Set()); // Clear selection after sending
+      alertSelection.clearSelection();
+      enrollmentSelection.clearSelection();
     } catch (error: any) {
       let errorMessage = 'Failed to send email. Please try again.';
 
@@ -677,18 +696,32 @@ export default function TutorDashboardPage() {
   ];
 
   const overviewStats = [
-    { label: 'Active learners', value: totalEnrollments, suffix: '', helper: `${activitySummary.engaged} currently engaged` },
+    {
+      label: 'Active learners',
+      value: totalEnrollments,
+      suffix: '',
+      helper: `${activitySummary.engaged} currently engaged`,
+      color: 'text-emerald-600',
+      border: 'border-l-4 border-l-emerald-500/40',
+      bg: 'bg-emerald-50/30'
+    },
     {
       label: 'Avg. progress',
       value: averageProgressPercent,
       suffix: '%',
-      helper: progressResponse?.totalModules ? `${progressResponse.totalModules} modules tracked` : 'Across current cohort'
+      helper: progressResponse?.totalModules ? `${progressResponse.totalModules} modules tracked` : 'Across current cohort',
+      color: 'text-indigo-600',
+      border: 'border-l-4 border-l-indigo-500/40',
+      bg: 'bg-indigo-50/30'
     },
     {
       label: 'Critical alerts',
       value: activitySummary.content_friction,
       suffix: '',
-      helper: 'Content friction signals'
+      helper: 'Content friction signals',
+      color: 'text-rose-600',
+      border: 'border-l-4 border-l-rose-500/50',
+      bg: 'bg-rose-50/50'
     }
   ];
 
@@ -747,671 +780,741 @@ export default function TutorDashboardPage() {
 
   return (
     <SiteLayout>
-      <div className="space-y-12">
-        <section id="overview" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <p className="text-xs uppercase tracking-[0.35em] text-emerald-600">Tutor Command Center</p>
-              <div>
-                <h1 className="text-3xl font-semibold text-slate-900">Welcome back, {session.fullName ?? 'Tutor'}</h1>
-                <p className="text-sm text-slate-600">
-                  Monitor every learner signal, respond to alerts, and guide your class from a single surface.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Select value={selectedCourseId ?? undefined} onValueChange={(value) => setSelectedCourseId(value)}>
-                  <SelectTrigger className="w-full border-slate-300 bg-white text-left text-slate-900 sm:w-[280px]">
-                    <SelectValue placeholder={coursesLoading ? 'Loading...' : 'Select course'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((course) => (
-                      <SelectItem key={course.courseId} value={course.courseId}>
-                        {course.title} {course.role ? `(${course.role})` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  className="border-slate-300 text-slate-700 hover:bg-slate-50"
-                  onClick={handleLogout}
-                >
-                  Logout
-                </Button>
-              </div>
-              {courses.length > 0 && selectedCourseId && (
-                <p className="text-sm text-slate-600">
-                  Showing data for{' '}
-                  <span className="font-semibold">
-                    {courses.find((c) => c.courseId === selectedCourseId)?.title ?? 'your course'}
-                  </span>
-                  .
-                </p>
-              )}
-            </div>
-            <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {overviewStats.map((stat) => (
-                <div key={stat.label} className="flex flex-col h-full min-h-[140px] rounded-2xl border border-slate-200 bg-slate-50 p-6 shadow-sm">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">{stat.label}</p>
-                  <div className="mt-2 text-4xl font-bold text-slate-900 tracking-tight">
-                    <NumberTicker value={stat.value} suffix={stat.suffix} />
-                  </div>
-                  <p className="mt-auto pt-4 text-[11px] font-medium text-slate-500 leading-relaxed border-t border-slate-200/50">{stat.helper}</p>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100">
+        <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10 text-slate-900">
+          <section id="overview" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-4">
+                <p className="text-xs uppercase tracking-[0.35em] text-emerald-600">Tutor Command Center</p>
+                <div>
+                  <h1 className="text-3xl font-semibold text-slate-900">Welcome back, {session.fullName ?? 'Tutor'}</h1>
+                  <p className="text-sm text-slate-600">
+                    Monitor every learner signal, respond to alerts, and guide your class from a single surface.
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <nav className="mt-6 flex flex-wrap gap-3 text-sm text-slate-600" aria-label="Tutor sections">
-          {navItems.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              onClick={() => handleSectionNav(item.id)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 font-medium tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <section id="classroom" className="mt-12 space-y-6">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">Classroom</p>
-            <h2 className="text-2xl font-semibold text-slate-900">Roster & Throughput</h2>
-            <p className="text-sm text-slate-600">Stay on top of enrollments and module completion at a glance.</p>
-          </div>
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card className="border-slate-200 bg-white text-slate-900 shadow-md">
-              <CardHeader>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="text-slate-900">Enrollments</CardTitle>
-                    <p className="text-sm text-slate-600">{totalEnrollments} learners in the cohort</p>
-                  </div>
-                  <Select value={selectedCohortId ?? undefined} onValueChange={(value) => setSelectedCohortId(value)}>
-                    <SelectTrigger className="w-full border-slate-300 bg-white text-left text-slate-900 sm:w-[220px]">
-                      <SelectValue placeholder={cohortsLoading ? 'Loading cohorts...' : 'Select cohort batch'} />
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Select value={selectedCourseId ?? undefined} onValueChange={(value) => setSelectedCourseId(value)}>
+                    <SelectTrigger className="w-full border-slate-300 bg-white text-left text-slate-900 sm:w-[280px]">
+                      <SelectValue placeholder={coursesLoading ? 'Loading...' : 'Select course'} />
                     </SelectTrigger>
                     <SelectContent>
-                      {cohorts.map((cohort) => (
-                        <SelectItem key={cohort.cohortId} value={cohort.cohortId}>
-                          {cohort.name}
+                      {courses.map((course) => (
+                        <SelectItem key={course.courseId} value={course.courseId}>
+                          {course.title} {course.role ? `(${course.role})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <Button
+                    variant="outline"
+                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </Button>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {enrollmentsLoading ? (
-                  <p className="text-sm text-slate-600">Loading enrollments...</p>
-                ) : (enrollmentsResponse?.enrollments ?? []).length === 0 ? (
-                  <p className="text-sm text-slate-600">No enrollments yet.</p>
-                ) : (
-                  <div className="relative group/scroll">
-                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300 scroll-smooth pr-2">
+                {courses.length > 0 && selectedCourseId && (
+                  <p className="text-sm text-slate-600">
+                    Showing data for{' '}
+                    <span className="font-semibold">
+                      {courses.find((c) => c.courseId === selectedCourseId)?.title ?? 'your course'}
+                    </span>
+                    .
+                  </p>
+                )}
+              </div>
+              <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {overviewStats.map((stat) => (
+                  <motion.div
+                    key={stat.label}
+                    whileHover={{
+                      y: -5,
+                      scale: 1.02,
+                      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)"
+                    }}
+                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    className={`flex flex-col h-full min-h-[140px] rounded-2xl border border-slate-200 p-6 shadow-sm cursor-default transition-all ${stat.bg} ${stat.border}`}
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">{stat.label}</p>
+                    <div className={`mt-2 text-4xl font-bold tracking-tight ${stat.color}`}>
+                      <NumberTicker value={stat.value} suffix={stat.suffix} />
+                    </div>
+                    <p className="mt-auto pt-4 text-[11px] font-medium text-slate-500 leading-relaxed border-t border-slate-200/50">{stat.helper}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <nav className="mt-6 flex flex-wrap gap-3 text-sm text-slate-600" aria-label="Tutor sections">
+            {navItems.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => handleSectionNav(item.id)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 font-medium tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          <section id="classroom" className="mt-12 space-y-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">Classroom</p>
+              <h2 className="text-2xl font-semibold text-slate-900">Roster & Throughput</h2>
+              <p className="text-sm text-slate-600">Stay on top of enrollments and module completion at a glance.</p>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="border-slate-200 bg-white text-slate-900 shadow-md">
+                <CardHeader>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <CardTitle className="text-slate-900">Enrollments</CardTitle>
+                      <p className="text-sm text-slate-600">{totalEnrollments} learners in the cohort</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {enrollmentSelection.selectedEmails.size > 0 && (
+                        <Button
+                          onClick={() => handleBulkEmail('enrollment')}
+                          size="sm"
+                          className="bg-emerald-600 text-white hover:bg-emerald-500 animate-in fade-in zoom-in duration-200 shrink-0"
+                        >
+                          <Mail className="mr-2 h-4 w-4" />
+                          Email Group ({enrollmentSelection.selectedEmails.size})
+                        </Button>
+                      )}
+                      <Select value={selectedCohortId ?? undefined} onValueChange={(value) => setSelectedCohortId(value)}>
+                        <SelectTrigger className="w-full border-slate-300 bg-white text-left text-slate-900 sm:w-[220px]">
+                          <SelectValue placeholder={cohortsLoading ? 'Loading cohorts...' : 'Select cohort batch'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cohorts.map((cohort) => (
+                            <SelectItem key={cohort.cohortId} value={cohort.cohortId}>
+                              {cohort.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {enrollmentsLoading ? (
+                    <p className="text-sm text-slate-600">Loading enrollments...</p>
+                  ) : (enrollmentsResponse?.enrollments ?? []).length === 0 ? (
+                    <p className="text-sm text-slate-600">No enrollments yet.</p>
+                  ) : (
+                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-2">
                       <Table>
                         <TableHeader>
                           <TableRow>
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={enrollmentSelection.isAllSelected((enrollmentsResponse?.enrollments ?? []).map(e => e.email))}
+                                onCheckedChange={() => enrollmentSelection.toggleSelectAll((enrollmentsResponse?.enrollments ?? []).map(e => e.email))}
+                                className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                              />
+                            </TableHead>
                             <TableHead className="text-slate-500">Learner</TableHead>
                             <TableHead className="text-slate-500">Email</TableHead>
                             <TableHead className="text-slate-500">Status</TableHead>
                             <TableHead className="text-slate-500">Enrolled</TableHead>
+                            <TableHead className="w-12 text-slate-500"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {(enrollmentsResponse?.enrollments ?? []).map((enrollment) => (
-                            <TableRow key={enrollment.enrollmentId} className="border-slate-100">
-                              <TableCell className="text-slate-900 font-medium">
+                            <TableRow key={enrollment.enrollmentId} className="border-slate-100 hover:bg-slate-50/80 cursor-pointer group/row transition-colors">
+                              <TableCell className="w-12">
+                                <Checkbox
+                                  checked={enrollmentSelection.selectedEmails.has(enrollment.email)}
+                                  onCheckedChange={() => enrollmentSelection.toggleEmailSelection(enrollment.email)}
+                                  className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                                />
+                              </TableCell>
+                              <TableCell className="text-slate-900 font-semibold py-3 px-4">
                                 {enrollment.fullName}
                               </TableCell>
-                              <TableCell className="text-slate-600 text-xs">{enrollment.email}</TableCell>
-                              <TableCell>
-                                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
+                              <TableCell className="py-3 px-4">
+                                <div className="text-slate-500 text-[10px] leading-tight">{enrollment.email}</div>
+                              </TableCell>
+                              <TableCell className="py-3 px-4">
+                                <span className="rounded-full bg-emerald-50/50 border border-emerald-100/50 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-600/80 tracking-tight">
                                   {enrollment.status}
                                 </span>
                               </TableCell>
-                              <TableCell className="text-slate-500 text-xs">{new Date(enrollment.enrolledAt).toLocaleDateString()}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-200 bg-white text-slate-900 shadow-md">
-              <CardHeader>
-                <CardTitle className="text-slate-900">Learner progress</CardTitle>
-                <p className="text-sm text-slate-600">
-                  Average completion {averageProgressPercent}% across {progressResponse?.totalModules ?? 0} modules
-                </p>
-              </CardHeader>
-              <CardContent>
-                {progressLoading ? (
-                  <p className="text-sm text-slate-600">Loading progress...</p>
-                ) : (progressResponse?.learners ?? []).length === 0 ? (
-                  <p className="text-sm text-slate-600">No progress yet.</p>
-                ) : (
-                  <div className="relative group/scroll">
-                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300 scroll-smooth pr-2">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-slate-500">Learner</TableHead>
-                            <TableHead className="text-slate-500">Modules</TableHead>
-                            <TableHead className="text-slate-500">Percent</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(progressResponse?.learners ?? []).map((learner) => (
-                            <TableRow key={learner.userId} className="border-slate-100">
-
-                              <TableCell>
-                                <div className="font-semibold text-slate-900">{learner.fullName}</div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-slate-500">{learner.email}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-slate-700 text-xs">
-                                {learner.completedModules}/{learner.totalModules}
-                              </TableCell>
-                              <TableCell className="text-slate-900">
-                                <div className="flex items-center gap-3">
-                                  <div className="h-2 flex-1 rounded-full bg-slate-200">
-                                    <div
-                                      className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-600"
-                                      style={{ width: `${learner.percent}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs font-bold">{learner.percent}%</span>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </section>
-
-        <section id="monitoring" className="mt-12 space-y-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">Intervention Zone</p>
-              <h2 className="text-2xl font-semibold text-slate-900">Engagement & Alerts</h2>
-              <p className="text-sm text-slate-600">
-                Assess signals and take directed action to guide learners back to flow.
-              </p>
-            </div>
-            {selectedEmails.size > 0 && (
-              <Button
-                onClick={handleBulkEmail}
-                className="bg-emerald-600 text-white hover:bg-emerald-500 animate-in fade-in slide-in-from-right-2"
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Email Group ({selectedEmails.size})
-              </Button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2 mt-4">
-            {statusOrder.map((key) => (
-              <div
-                key={key}
-                className="flex items-center gap-2 rounded-full border border-slate-100 bg-white px-3 py-1 shadow-sm transition hover:border-slate-200"
-              >
-                <span className={`h-2 w-2 rounded-full ${statusMeta[key].dotClass} animate-pulse`} />
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-700">{statusMeta[key].label}</p>
-                  <span className="h-1 w-1 rounded-full bg-slate-200" />
-                  <p className="text-[10px] font-medium text-slate-500">{activitySummary[key]}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-2 mt-6">
-            <Card className="border-slate-200 bg-white text-slate-900 shadow-md flex flex-col">
-              <CardHeader>
-                <CardTitle className="text-slate-900">Alert Feed</CardTitle>
-                <p className="text-xs text-slate-500">
-                  {activityFetching ? 'Refreshing telemetry...' : 'Snapshots refresh automatically every 30 seconds.'}
-                </p>
-              </CardHeader>
-              <CardContent className="flex-1">
-                {activityError ? (
-                  <p className="text-sm text-rose-500">
-                    Unable to load learner telemetry right now. Please retry shortly.
-                  </p>
-                ) : activityLoading ? (
-                  <div className="space-y-3">
-                    {[0, 1, 2].map((index) => (
-                      <Skeleton key={index} className="h-24 w-full rounded-2xl bg-slate-100" />
-                    ))}
-                  </div>
-                ) : (activityResponse?.learners ?? []).length === 0 ? (
-                  <p className="text-sm text-slate-600">
-                    No telemetry yet. As learners watch, read, attempt quizzes, or interact with widgets, they will appear here.
-                  </p>
-                ) : (
-                  <div className="relative group/scroll">
-                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300 scroll-smooth pr-2 pb-12">
-                      <div className="space-y-2">
-                        {(activityResponse?.learners ?? []).map((learner) => {
-                          const directoryIdentity = learnerDirectory.get(learner.userId);
-                          const identity = {
-                            fullName: learner.fullName || directoryIdentity?.fullName,
-                            email: learner.email || directoryIdentity?.email
-                          };
-                          const key = (learner.derivedStatus ?? 'unknown') as keyof typeof statusMeta;
-                          const meta = statusMeta[key];
-                          const isActive = selectedLearnerId === learner.userId;
-                          const reasonLabel = formatStatusReason(learner.statusReason);
-                          return (
-                            <div key={learner.userId} className="flex items-center gap-3 pr-2">
-                              <input
-                                type="checkbox"
-                                checked={identity?.email ? selectedEmails.has(identity.email) : false}
-                                onChange={() => identity?.email && toggleEmailSelection(identity.email)}
-                                disabled={!identity?.email}
-                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setSelectedLearnerId(learner.userId)}
-                                className={`flex-1 rounded-2xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${isActive ? 'border-emerald-200 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'
-                                  }`}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-semibold text-slate-900 line-clamp-1">
-                                      {identity.fullName ?? 'Learner'}{' '}
-                                      {!identity.fullName && (
-                                        <span className="text-xs text-slate-500">({learner.userId.slice(0, 6)})</span>
-                                      )}
-                                    </p>
-                                    <p className="text-[11px] text-slate-500 truncate">{identity.email ?? 'Email unavailable'}</p>
-                                  </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
-                                      {meta.label}
-                                    </Badge>
-                                    {identity.email && (
+                              <TableCell className="text-slate-400 text-[10px] py-3 px-4 font-medium">{new Date(enrollment.enrolledAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="w-12 py-3 px-4">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600"
-                                        title="Email learner about this engagement issue"
+                                        className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleOpenEmailModal({
-                                            email: identity.email as string,
-                                            fullName: identity.fullName ?? 'Learner'
-                                          });
+                                          handleOpenEmailModal({ email: enrollment.email, fullName: enrollment.fullName });
                                         }}
                                       >
                                         <Mail className="h-4 w-4" />
                                       </Button>
-                                    )}
-                                  </div>
-                                </div>
-                                {reasonLabel && <p className="mt-2 text-xs text-slate-600 line-clamp-2">{reasonLabel}</p>}
-                                <p className="mt-2 text-[10px] text-slate-400">Updated {formatTimestamp(learner.createdAt)}</p>
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="bg-slate-900 text-white border-0 text-[10px] px-2 py-1">
+                                      Email learner
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     </div>
-                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-200 bg-white text-slate-900 shadow-md flex flex-col">
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3 min-h-[56px]">
-                  <div>
-                    <CardTitle className="text-slate-900">Learner detail</CardTitle>
-                    {selectedIdentity && (
-                      <p className="text-sm text-emerald-600 font-medium truncate max-w-[200px]">
-                        {selectedIdentity.fullName}
-                      </p>
-                    )}
-                  </div>
-                  {selectedLearner && (
-                    <Badge
-                      variant="secondary"
-                      className={`${statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].badgeClass} border-0`}
-                    >
-                      {statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].label}
-                    </Badge>
                   )}
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1">
-                {!selectedLearnerId ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
-                    <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
-                      <MessageSquare className="w-8 h-8 text-slate-300" />
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 bg-white text-slate-900 shadow-md">
+                <CardHeader>
+                  <CardTitle className="text-slate-900">Learner progress</CardTitle>
+                  <p className="text-xs text-slate-400 font-normal leading-relaxed">
+                    Average completion {averageProgressPercent}% across {progressResponse?.totalModules ?? 0} modules
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {progressLoading ? (
+                    <p className="text-sm text-slate-600">Loading progress...</p>
+                  ) : (progressResponse?.learners ?? []).length === 0 ? (
+                    <p className="text-sm text-slate-600">No progress yet.</p>
+                  ) : (
+                    <div className="relative group/scroll">
+                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-2">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-slate-500">Learner</TableHead>
+                              <TableHead className="text-slate-500">Modules</TableHead>
+                              <TableHead className="text-slate-500">Percent</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(progressResponse?.learners ?? []).map((learner) => (
+                              <TableRow key={learner.userId} className="border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors group/row">
+
+                                <TableCell className="py-2.5 px-4">
+                                  <div className="font-semibold text-slate-900 leading-tight">{learner.fullName}</div>
+                                  <div className="text-[10px] text-slate-500 leading-tight mt-0.5">{learner.email}</div>
+                                </TableCell>
+                                <TableCell className="text-slate-500 text-[10px] py-2.5 px-4 font-medium">
+                                  {learner.completedModules}/{learner.totalModules}
+                                </TableCell>
+                                <TableCell className="text-slate-900 py-2.5 px-4 min-w-[140px]">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-2.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 shadow-[0_0_8px_rgba(52,211,153,0.3)]"
+                                        style={{ width: `${learner.percent}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-600 min-w-[32px] text-right">{learner.percent}%</span>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900">No learner selected</h3>
-                    <p className="text-sm text-slate-500 max-w-[200px] mt-2">
-                      Select a learner from the list to view their engagement details and recent activity.
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+
+          <section id="monitoring" className="mt-12 space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">Intervention Zone</p>
+                <h2 className="text-2xl font-semibold text-slate-900">Engagement & Alerts</h2>
+                <p className="text-sm text-slate-600">
+                  Assess signals and take directed action to guide learners back to flow.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-4">
+              {statusOrder.map((key) => (
+                <div
+                  key={key}
+                  className="flex items-center gap-2 rounded-full border border-slate-100 bg-white px-3 py-1 shadow-sm transition hover:border-slate-200"
+                >
+                  <span className={`h-2 w-2 rounded-full ${statusMeta[key].dotClass} animate-pulse`} />
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-700">{statusMeta[key].label}</p>
+                    <span className="h-1 w-1 rounded-full bg-slate-200" />
+                    <p className="text-[10px] font-medium text-slate-500">{activitySummary[key as keyof ActivitySummary]}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2 mt-6">
+              <Card className="border-slate-200 bg-white text-slate-900 shadow-md flex flex-col">
+                <CardHeader className="flex flex-row items-start justify-between space-y-0">
+                  <div>
+                    <CardTitle className="text-slate-900">Alert Feed</CardTitle>
+                    <p className="text-xs text-slate-500">
+                      {activityFetching ? 'Refreshing telemetry...' : 'Snapshots refresh automatically every 30 seconds.'}
                     </p>
                   </div>
-                ) : (
-                  <div className="relative group/scroll">
-                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300 scroll-smooth pr-1 pb-12">
-                      {historyLoading || historyFetching ? (
+                  <div className="flex items-center gap-4">
+                    {alertSelection.selectedEmails.size > 0 && (
+                      <Button
+                        onClick={() => handleBulkEmail('alert')}
+                        size="sm"
+                        className="bg-emerald-600 text-white hover:bg-emerald-500 animate-in fade-in zoom-in duration-200 shrink-0"
+                      >
+                        <Mail className="mr-2 h-4 w-4" />
+                        Email Group ({alertSelection.selectedEmails.size})
+                      </Button>
+                    )}
+                    <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 border border-slate-100">
+                      <Checkbox
+                        id="select-all-alerts"
+                        checked={alertSelection.isAllSelected((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
+                        onCheckedChange={() => alertSelection.toggleSelectAll((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
+                        className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                      />
+                      <label htmlFor="select-all-alerts" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 cursor-pointer select-none">
+                        Select All
+                      </label>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  {activityError ? (
+                    <p className="text-sm text-rose-500">
+                      Unable to load learner telemetry right now. Please retry shortly.
+                    </p>
+                  ) : activityLoading ? (
+                    <div className="space-y-3">
+                      {[0, 1, 2].map((index) => (
+                        <Skeleton key={index} className="h-24 w-full rounded-2xl bg-slate-100" />
+                      ))}
+                    </div>
+                  ) : (activityResponse?.learners ?? []).length === 0 ? (
+                    <p className="text-sm text-slate-600">
+                      No telemetry yet. As learners watch, read, attempt quizzes, or interact with widgets, they will appear here.
+                    </p>
+                  ) : (
+                    <div className="relative group/scroll">
+                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-2 pb-12">
                         <div className="space-y-2">
-                          {[0, 1, 2].map((index) => (
-                            <Skeleton key={index} className="h-20 w-full rounded-xl bg-slate-100" />
-                          ))}
-                        </div>
-                      ) : sortedHistoryEvents.length === 0 ? (
-                        <div className="text-center py-10 text-slate-500">
-                          <p className="text-sm">No events recorded for this learner yet.</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {sortedHistoryEvents.map((event, index) => {
-                            const meta = statusMeta[(event.derivedStatus ?? 'unknown') as keyof typeof statusMeta];
-                            const eventLabel = formatEventLabel(event.eventType);
-                            const reasonLabel = formatStatusReason(event.statusReason);
+                          {(activityResponse?.learners ?? []).map((learner) => {
+                            const directoryIdentity = learnerDirectory.get(learner.userId);
+                            const identity = {
+                              fullName: learner.fullName || directoryIdentity?.fullName,
+                              email: learner.email || directoryIdentity?.email
+                            };
+                            const key = (learner.derivedStatus ?? 'unknown') as keyof typeof statusMeta;
+                            const meta = statusMeta[key];
+                            const isActive = selectedLearnerId === learner.userId;
+                            const reasonLabel = formatStatusReason(learner.statusReason);
                             return (
-                              <div
-                                key={event.eventId ?? `${event.eventType}-${event.createdAt}-${event.moduleNo ?? 'm'}-${index}`}
-                                className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm hover:border-slate-200 transition"
-                              >
-                                <div className="flex items-center justify-between gap-3 mb-2">
-                                  <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
-                                    {meta.label}
-                                  </Badge>
-                                  <span className="text-[10px] font-medium text-slate-400">{formatTimestamp(event.createdAt)}</span>
-                                </div>
-                                <p className="text-sm font-bold text-slate-900">{eventLabel}</p>
-                                {reasonLabel && <p className="mt-1 text-xs text-slate-600 italic">"{reasonLabel}"</p>}
-                                <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
-                                  <span className="rounded-md bg-slate-50 px-2 py-1">
-                                    {(() => {
-                                      const topicMeta = event.topicId ? topicTitleLookup.get(event.topicId) : null;
-                                      return topicMeta
-                                        ? topicMeta.moduleName ?? `Module ${topicMeta.moduleNo}`
-                                        : `Module ${event.moduleNo ?? 'n/a'}`;
-                                    })()}
-                                  </span>
-                                  <span className="text-slate-200">•</span>
-                                  <span className="truncate">
-                                    {(() => {
-                                      const topicMeta = event.topicId ? topicTitleLookup.get(event.topicId) : null;
-                                      return topicMeta?.title ?? (event.topicId ? `Topic ${event.topicId.slice(0, 8)}` : 'Topic n/a');
-                                    })()}
-                                  </span>
-                                </div>
+                              <div key={learner.userId} className="flex items-center gap-3 pr-2">
+                                <Checkbox
+                                  checked={identity?.email ? alertSelection.selectedEmails.has(identity.email) : false}
+                                  onCheckedChange={() => identity?.email && alertSelection.toggleEmailSelection(identity.email)}
+                                  disabled={!identity?.email}
+                                  className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 shrink-0"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedLearnerId(learner.userId)}
+                                  className={`flex-1 rounded-2xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${isActive ? 'border-emerald-200 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'
+                                    }`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-900 line-clamp-1">
+                                        {identity.fullName ?? 'Learner'}{' '}
+                                        {!identity.fullName && (
+                                          <span className="text-xs text-slate-500">({learner.userId.slice(0, 6)})</span>
+                                        )}
+                                      </p>
+                                      <p className="text-[11px] text-slate-500 truncate">{identity.email ?? 'Email unavailable'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
+                                        {meta.label}
+                                      </Badge>
+                                      {identity?.email && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600"
+                                          title="Email learner about this engagement issue"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenEmailModal({ email: identity.email!, fullName: identity.fullName ?? 'Learner' });
+                                          }}
+                                        >
+                                          <Mail className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {reasonLabel && <p className="mt-2 text-xs text-slate-600 line-clamp-2">{reasonLabel}</p>}
+                                  <p className="mt-2 text-[10px] text-slate-400">Updated {formatTimestamp(learner.createdAt)}</p>
+                                </button>
                               </div>
                             );
                           })}
                         </div>
+                      </div>
+                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 bg-white text-slate-900 shadow-md flex flex-col">
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-3 min-h-[56px]">
+                    <div>
+                      <CardTitle className="text-slate-900">Learner detail</CardTitle>
+                      {selectedIdentity && (
+                        <p className="text-sm text-emerald-600 font-medium truncate max-w-[200px]">
+                          {selectedIdentity.fullName}
+                        </p>
                       )}
                     </div>
-                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
+                    {selectedLearner && (
+                      <Badge
+                        variant="secondary"
+                        className={`${statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].badgeClass} border-0`}
+                      >
+                        {statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].label}
+                      </Badge>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </section>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  {!selectedLearnerId ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
+                      <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
+                        <MessageSquare className="w-8 h-8 text-slate-300" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-slate-900">No learner selected</h3>
+                      <p className="text-sm text-slate-500 max-w-[200px] mt-2">
+                        Select a learner from the list to view their engagement details and recent activity.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="relative group/scroll">
+                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-1 pb-12">
+                        {historyLoading || historyFetching ? (
+                          <div className="space-y-2">
+                            {[0, 1, 2].map((index) => (
+                              <Skeleton key={index} className="h-20 w-full rounded-xl bg-slate-100" />
+                            ))}
+                          </div>
+                        ) : sortedHistoryEvents.length === 0 ? (
+                          <div className="text-center py-10 text-slate-500">
+                            <p className="text-sm">No events recorded for this learner yet.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {sortedHistoryEvents.map((event, index) => {
+                              const meta = statusMeta[(event.derivedStatus ?? 'unknown') as keyof typeof statusMeta];
+                              const eventLabel = formatEventLabel(event.eventType);
+                              const reasonLabel = formatStatusReason(event.statusReason);
+                              return (
+                                <div
+                                  key={event.eventId ?? `${event.eventType}-${event.createdAt}-${event.moduleNo ?? 'm'}-${index}`}
+                                  className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm hover:border-slate-200 transition"
+                                >
+                                  <div className="flex items-center justify-between gap-3 mb-2">
+                                    <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
+                                      {meta.label}
+                                    </Badge>
+                                    <span className="text-[10px] font-medium text-slate-400">{formatTimestamp(event.createdAt)}</span>
+                                  </div>
+                                  <p className="text-sm font-bold text-slate-900">{eventLabel}</p>
+                                  {reasonLabel && <p className="mt-1 text-xs text-slate-600 italic">"{reasonLabel}"</p>}
+                                  <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
+                                    <span className="rounded-md bg-slate-50 px-2 py-1">
+                                      {(() => {
+                                        const topicMeta = event.topicId ? topicTitleLookup.get(event.topicId) : null;
+                                        return topicMeta
+                                          ? topicMeta.moduleName ?? `Module ${topicMeta.moduleNo}`
+                                          : `Module ${event.moduleNo ?? 'n/a'}`;
+                                      })()}
+                                    </span>
+                                    <span className="text-slate-200">•</span>
+                                    <span className="truncate">
+                                      {(() => {
+                                        const topicMeta = event.topicId ? topicTitleLookup.get(event.topicId) : null;
+                                        return topicMeta?.title ?? (event.topicId ? `Topic ${event.topicId.slice(0, 8)}` : 'Topic n/a');
+                                      })()}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </section>
 
-      </div>
-
-      {/* Persistent AI Copilot Button - Anchored horizontally to white surface, fixed to viewport bottom */}
-      {!isAssistantSheetOpen && (
-        <div className="fixed inset-x-0 bottom-6 z-50 pointer-events-none">
-          <div className="mx-auto max-w-[96%] px-6 sm:px-10 flex justify-end">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="pointer-events-auto"
-            >
-              <motion.div
-                animate={{
-                  boxShadow: [
-                    "0 0 0 0px rgba(16, 185, 129, 0)",
-                    "0 0 0 10px rgba(16, 185, 129, 0.2)",
-                    "0 0 0 0px rgba(16, 185, 129, 0)"
-                  ]
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-                className="rounded-full"
-              >
-                <Button
-                  onClick={() => setIsAssistantSheetOpen(true)}
-                  className="h-12 px-6 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl flex items-center gap-2 group transition-all hover:scale-105 active:scale-95"
-                >
-                  <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                  <span className="font-semibold tracking-tight text-sm">AI Copilot</span>
-                </Button>
-              </motion.div>
-            </motion.div>
-          </div>
         </div>
-      )}
 
-      {/* AI Copilot Side Panel (Sheet) */}
-      <Sheet open={isAssistantSheetOpen} onOpenChange={setIsAssistantSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-[400px] md:max-w-[450px] p-0 border-l border-slate-200 bg-white flex flex-col">
-          <SheetHeader className="p-6 border-b border-slate-200">
-            <div className="flex items-center gap-2 text-emerald-600 mb-1">
-              <Sparkles className="w-4 h-4" />
-              <p className="text-[10px] uppercase tracking-[0.3em] font-bold">AI Copilot</p>
-            </div>
-            <SheetTitle className="text-xl font-bold text-slate-900">Classroom Analyst</SheetTitle>
-          </SheetHeader>
-
-          {/* Quick Suggestions */}
-          <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
-            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-3">Quick Suggestions</p>
-            <div className="flex flex-col gap-2">
-              {QUICK_PROMPTS.map((prompt, i) => (
-                <button
-                  key={i}
-                  onClick={() => performAssistantQuery(prompt)}
-                  className="text-left text-sm p-3 rounded-xl border-2 border-emerald-100 bg-white hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-slate-700 hover:text-emerald-700 font-medium shadow-sm"
+        {/* Persistent AI Copilot Button - Anchored horizontally to white surface, fixed to viewport bottom */}
+        {!isAssistantSheetOpen && (
+          <div className="fixed inset-x-0 bottom-6 z-50 pointer-events-none">
+            <div className="mx-auto max-w-[96%] px-6 sm:px-10 flex justify-end">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="pointer-events-auto"
+              >
+                <motion.div
+                  animate={{
+                    boxShadow: [
+                      "0 0 0 0px rgba(16, 185, 129, 0)",
+                      "0 0 0 10px rgba(16, 185, 129, 0.2)",
+                      "0 0 0 0px rgba(16, 185, 129, 0)"
+                    ]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="rounded-full"
                 >
-                  {prompt}
-                </button>
-              ))}
+                  <Button
+                    onClick={() => setIsAssistantSheetOpen(true)}
+                    className="h-12 px-6 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl flex items-center gap-2 group transition-all hover:scale-105 active:scale-95"
+                  >
+                    <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                    <span className="font-semibold tracking-tight text-sm">AI Copilot</span>
+                  </Button>
+                </motion.div>
+              </motion.div>
             </div>
           </div>
+        )}
 
-          <div
-            ref={assistantChatRef}
-            className="flex-1 overflow-y-auto p-6 space-y-4"
-          >
-            {assistantMessages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-60">
-                <div className="p-4 rounded-full bg-slate-100">
-                  <MessageSquare className="w-8 h-8 text-slate-400" />
+        {/* AI Copilot Side Panel (Sheet) */}
+        <Sheet open={isAssistantSheetOpen} onOpenChange={setIsAssistantSheetOpen}>
+          <SheetContent side="right" className="w-full sm:max-w-[400px] md:max-w-[450px] p-0 border-l border-slate-200 bg-white flex flex-col">
+            <SheetHeader className="p-6 border-b border-slate-200">
+              <div className="flex items-center gap-2 text-emerald-600 mb-1">
+                <Sparkles className="w-4 h-4" />
+                <p className="text-[10px] uppercase tracking-[0.3em] font-bold">AI Copilot</p>
+              </div>
+              <SheetTitle className="text-xl font-bold text-slate-900">Classroom Analyst</SheetTitle>
+            </SheetHeader>
+
+            {/* Quick Suggestions */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-3">Quick Suggestions</p>
+              <div className="flex flex-col gap-2">
+                {QUICK_PROMPTS.map((prompt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => performAssistantQuery(prompt)}
+                    className="text-left text-sm p-3 rounded-xl border-2 border-emerald-100 bg-white hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-slate-700 hover:text-emerald-700 font-medium shadow-sm"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div
+              ref={assistantChatRef}
+              className="flex-1 overflow-y-auto p-6 space-y-4"
+            >
+              {assistantMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-60">
+                  <div className="p-4 rounded-full bg-slate-100">
+                    <MessageSquare className="w-8 h-8 text-slate-400" />
+                  </div>
+                  <p className="text-sm text-slate-500 max-w-[200px]">
+                    Ask about enrollments, stuck learners, or classroom engagement.
+                  </p>
                 </div>
-                <p className="text-sm text-slate-500 max-w-[200px]">
-                  Ask about enrollments, stuck learners, or classroom engagement.
+              ) : (
+                assistantMessages.map((message, idx) => (
+                  <div
+                    key={message.id}
+                    ref={idx === assistantMessages.length - 1 ? lastMessageRef : null}
+                    className={`flex flex-col ${message.role === 'assistant' ? 'items-start' : 'items-end'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${message.role === 'assistant'
+                        ? 'bg-slate-100 text-slate-900 rounded-tl-none'
+                        : 'bg-emerald-600 text-white rounded-tr-none shadow-md shadow-emerald-600/20'
+                        }`}
+                    >
+                      <p className="text-[9px] uppercase tracking-wider opacity-60 font-bold mb-1">
+                        {message.role === 'assistant' ? 'Copilot' : 'You'}
+                      </p>
+                      <div className="leading-relaxed whitespace-pre-line">
+                        {message.role === 'assistant' && /(?:^|\s|\n)\d{1,2}\./.test(message.content) ? (
+                          <ul className="space-y-1">
+                            {message.content
+                              .split(/(?=\s\d{1,2}\.|\n\d{1,2}\.)|^(\d{1,2}\.)/)
+                              .filter(Boolean)
+                              .map((part, pIdx) => (
+                                <li key={pIdx} className={pIdx > 0 ? "pt-1" : ""}>
+                                  {part.trim()}
+                                </li>
+                              ))}
+                          </ul>
+                        ) : (
+                          message.content
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              {assistantLoading && (
+                <div className="flex items-start">
+                  <div className="bg-slate-100 text-slate-900 rounded-2xl rounded-tl-none px-4 py-3 text-sm flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin opacity-60" />
+                    <span className="text-xs font-medium opacity-60">Analysing classroom data...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-white">
+              <form onSubmit={handleAssistantSubmit} className="flex flex-row flex-nowrap items-center gap-2">
+                <Input
+                  value={assistantInput}
+                  onChange={(event) => setAssistantInput(event.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAssistantSubmit(e as any);
+                    }
+                  }}
+                  placeholder="Ask about learners..."
+                  disabled={!selectedCourseId}
+                  className="flex-1 border-slate-300 focus:border-emerald-500 bg-white text-slate-900 placeholder:text-slate-500 rounded-xl h-11"
+                />
+                <Button
+                  type="submit"
+                  disabled={!selectedCourseId || assistantLoading || !assistantInput.trim()}
+                  className="bg-emerald-600 text-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-600 border border-transparent shadow-sm rounded-xl px-4 h-11 shrink-0 font-bold whitespace-nowrap"
+                >
+                  {assistantLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ask'}
+                </Button>
+              </form>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+          <DialogContent className="sm:max-w-[500px] border-slate-200 bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-slate-900">Email Student</DialogTitle>
+              <DialogDescription className="text-slate-600">
+                Send a direct message to {emailFormData.fullName}.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSendEmail} className="space-y-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="to" className="text-slate-700">To</Label>
+                <Input
+                  id="to"
+                  value={Array.isArray(emailFormData.to) ? emailFormData.to.join(', ') : emailFormData.to}
+                  disabled
+                  className="bg-slate-50 text-xs"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="subject" className="text-slate-700">Subject</Label>
+                <Input
+                  id="subject"
+                  required
+                  value={emailFormData.subject}
+                  onChange={(e) => setEmailFormData({ ...emailFormData, subject: e.target.value })}
+                  placeholder="e.g. Feedback on your recent module"
+                  className="border-slate-300"
+                />
+              </div>
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="message" className="text-slate-700">Message</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleImproveEmail}
+                    disabled={!emailFormData.message.trim() || isImprovingEmail}
+                    className="text-xs h-7"
+                  >
+                    {isImprovingEmail ? (
+                      <>
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        Improving...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-1 h-3 w-3" />
+                        AI Improve
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <Textarea
+                  id="message"
+                  required
+                  rows={8}
+                  value={emailFormData.message}
+                  onChange={(e) => setEmailFormData({ ...emailFormData, message: e.target.value })}
+                  placeholder="Write your message here..."
+                  className="border-slate-300"
+                />
+                <p className="text-xs text-slate-500">
+                  Tip: Write a brief message, then click "AI Improve" to enhance it professionally.
                 </p>
               </div>
-            ) : (
-              assistantMessages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex flex-col ${message.role === 'assistant' ? 'items-start' : 'items-end'}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${message.role === 'assistant'
-                      ? 'bg-slate-100 text-slate-900 rounded-tl-none'
-                      : 'bg-emerald-600 text-white rounded-tr-none shadow-md shadow-emerald-600/20'
-                      }`}
-                  >
-                    <p className="text-[9px] uppercase tracking-wider opacity-60 font-bold mb-1">
-                      {message.role === 'assistant' ? 'Copilot' : 'You'}
-                    </p>
-                    <div className="leading-relaxed whitespace-pre-line">
-                      {message.role === 'assistant' && /(?:^|\s|\n)\d{1,2}\./.test(message.content) ? (
-                        <ul className="space-y-1">
-                          {message.content
-                            .split(/(?=\s\d{1,2}\.|\n\d{1,2}\.)|^(\d{1,2}\.)/)
-                            .filter(Boolean)
-                            .map((part, pIdx) => (
-                              <li key={pIdx} className={pIdx > 0 ? "pt-1" : ""}>
-                                {part.trim()}
-                              </li>
-                            ))}
-                        </ul>
-                      ) : (
-                        message.content
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-            {assistantLoading && (
-              <div className="flex items-start">
-                <div className="bg-slate-100 text-slate-900 rounded-2xl rounded-tl-none px-4 py-3 text-sm flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin opacity-60" />
-                  <span className="text-xs font-medium opacity-60">Analysing classroom data...</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 border-t border-slate-200 bg-white">
-            <form onSubmit={handleAssistantSubmit} className="flex flex-row flex-nowrap items-center gap-2">
-              <Input
-                value={assistantInput}
-                onChange={(event) => setAssistantInput(event.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAssistantSubmit(e as any);
-                  }
-                }}
-                placeholder="Ask about learners..."
-                disabled={!selectedCourseId}
-                className="flex-1 border-slate-300 focus:border-emerald-500 bg-white text-slate-900 placeholder:text-slate-500 rounded-xl h-11"
-              />
-              <Button
-                type="submit"
-                disabled={!selectedCourseId || assistantLoading || !assistantInput.trim()}
-                className="bg-emerald-600 text-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-600 border border-transparent shadow-sm rounded-xl px-4 h-11 shrink-0 font-bold whitespace-nowrap"
-              >
-                {assistantLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ask'}
-              </Button>
-            </form>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
-        <DialogContent className="sm:max-w-[500px] border-slate-200 bg-white">
-          <DialogHeader>
-            <DialogTitle className="text-slate-900">Email Student</DialogTitle>
-            <DialogDescription className="text-slate-600">
-              Send a direct message to {emailFormData.fullName}.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSendEmail} className="space-y-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="to" className="text-slate-700">To</Label>
-              <Input
-                id="to"
-                value={Array.isArray(emailFormData.to) ? emailFormData.to.join(', ') : emailFormData.to}
-                disabled
-                className="bg-slate-50 text-xs"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="subject" className="text-slate-700">Subject</Label>
-              <Input
-                id="subject"
-                required
-                value={emailFormData.subject}
-                onChange={(e) => setEmailFormData({ ...emailFormData, subject: e.target.value })}
-                placeholder="e.g. Feedback on your recent module"
-                className="border-slate-300"
-              />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="message" className="text-slate-700">Message</Label>
+              <DialogFooter className="pt-4">
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  onClick={handleImproveEmail}
-                  disabled={!emailFormData.message.trim() || isImprovingEmail}
-                  className="text-xs h-7"
+                  onClick={() => setIsEmailModalOpen(false)}
+                  className="border-slate-300 text-slate-700"
                 >
-                  {isImprovingEmail ? (
-                    <>
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      Improving...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-1 h-3 w-3" />
-                      AI Improve
-                    </>
-                  )}
+                  Cancel
                 </Button>
-              </div>
-              <Textarea
-                id="message"
-                required
-                rows={8}
-                value={emailFormData.message}
-                onChange={(e) => setEmailFormData({ ...emailFormData, message: e.target.value })}
-                placeholder="Write your message here..."
-                className="border-slate-300"
-              />
-              <p className="text-xs text-slate-500">
-                Tip: Write a brief message, then click "AI Improve" to enhance it professionally.
-              </p>
-            </div>
-            <DialogFooter className="pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsEmailModalOpen(false)}
-                className="border-slate-300 text-slate-700"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={emailSending}
-                className="bg-emerald-600 text-white hover:bg-emerald-500"
-              >
-                {emailSending ? 'Sending...' : 'Send Email'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <Button
+                  type="submit"
+                  disabled={emailSending}
+                  className="bg-emerald-600 text-white hover:bg-emerald-500"
+                >
+                  {emailSending ? 'Sending...' : 'Send Email'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
     </SiteLayout>
   );
 }

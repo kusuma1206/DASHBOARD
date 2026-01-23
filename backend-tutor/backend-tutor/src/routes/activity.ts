@@ -14,7 +14,7 @@ router.get(
     requireAuth,
     asyncHandler(async (req: AuthenticatedRequest, res: any) => {
         const { courseId } = req.params;
-        const cohortId = req.query.cohortId as string | undefined;
+        const { cohortId } = req.query as { cohortId?: string };
         const { userId, role } = req.auth!;
 
         // Ensure user has access to this course's telemetry
@@ -54,6 +54,7 @@ router.get(
         const { learnerUserId } = req.params;
         const courseId = req.query.courseId as string;
         const limit = parseInt(req.query.limit as string) || 40;
+        const before = req.query.before ? new Date(req.query.before as string) : null;
         const { userId, role } = req.auth!;
 
         if (!courseId) {
@@ -66,7 +67,8 @@ router.get(
         const events = await getLearnerHistory({
             userId: learnerUserId,
             courseId,
-            limit
+            limit,
+            before
         });
 
         res.json({ events });
