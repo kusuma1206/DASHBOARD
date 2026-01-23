@@ -338,9 +338,24 @@ export function formatTutorSnapshot(snapshot: TutorCourseSnapshot): string {
     return `${index + 1}. [COHORT] ${cohort.name} (${status}) – ${cohort.memberCount} members, ${cohort.averageCompletion}% COHORT AVERAGE completion. Starts: ${startDate}.\n   Student Names in this cohort: ${learnerNames}${moreCount}`;
   }).join("\n");
 
-  const rosterLines = (learners ?? [])
+  // CRITICAL: Sort learners by completion percentage in DESCENDING order (100% → 0%)
+  // This ensures the AI receives pre-sorted data for accurate "top N" queries
+  const sortedLearners = [...(learners ?? [])].sort((a, b) => {
+    // Primary sort: by completion percentage (descending)
+    if (b.percent !== a.percent) {
+      return b.percent - a.percent;
+    }
+    // Secondary sort: by completed modules count (descending)
+    if (b.completedModules !== a.completedModules) {
+      return b.completedModules - a.completedModules;
+    }
+    // Tertiary sort: alphabetically by name for consistency
+    return a.fullName.localeCompare(b.fullName);
+  });
+
+  const rosterLines = sortedLearners
     .slice(0, 40)
-    .map((learner) => {
+    .map((learner, index) => {
       const enrolled = formatDate(learner.enrolledAt);
       const lastActivity = learner.lastActivity ? formatDate(learner.lastActivity) : "unknown";
       const cohortInfo = learner.cohortName ? ` cohort="${learner.cohortName}"` : "";
@@ -348,7 +363,9 @@ export function formatTutorSnapshot(snapshot: TutorCourseSnapshot): string {
         ? ` signals="${(learner as any).recentTelemetry.map((t: any) => `${t.reason}`).join(" | ")}"`
         : " signals=\"none\"";
 
-      return `[RECORD] name="${learner.fullName}" email="${learner.email}"${cohortInfo} progress="${learner.percent}%" count="${learner.completedModules}/${learner.totalModules}" enrolled="${enrolled}" last_active="${lastActivity}"${telemetry}`;
+      // Add ranking number to make it crystal clear for the AI
+      const rank = index + 1;
+      return `[RECORD #${rank}] name="${learner.fullName}" email="${learner.email}"${cohortInfo} progress="${learner.percent}%" count="${learner.completedModules}/${learner.totalModules}" enrolled="${enrolled}" last_active="${lastActivity}"${telemetry}`;
     })
     .join("\n");
 
