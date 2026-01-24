@@ -52,19 +52,31 @@ export async function generateAnswerFromContext(prompt: string): Promise<string>
 
 export async function rewriteFollowUpQuestion(options: {
   question: string;
-  lastAssistantMessage: string;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  lastAssistantMessage?: string;
   summary?: string | null;
 }): Promise<string> {
   const summaryBlock = options.summary?.trim()
     ? `Conversation summary:\n${options.summary.trim()}`
     : "";
+
+  let contextBlock = "";
+  if (options.history && options.history.length > 0) {
+    contextBlock = "Recent conversation:\n" + options.history
+      .map(h => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`)
+      .join("\n");
+  } else if (options.lastAssistantMessage) {
+    contextBlock = `Previous assistant response:\n${options.lastAssistantMessage}`;
+  }
+
   const prompt = [
-    "Rewrite the user's question so it is a standalone question that preserves the intended meaning.",
-    "Use the previous assistant response for context. If the question is already clear, return it unchanged.",
-    "Return only the rewritten question text.",
+    "You are a standalone question generator.",
+    "Rewrite the user's latest question so it is a standalone question that preserves the intended meaning and resolves all pronouns (he, him, his, they, that, those, etc.) using the conversation history.",
+    "If the question is already standalone and clear (e.g., 'Who is the top learner?'), return it exactly as is.",
+    "Return ONLY the rewritten technical/standalone question text.",
     "",
     summaryBlock,
-    `Previous assistant response:\n${options.lastAssistantMessage}`,
+    contextBlock,
     `User question:\n${options.question}`,
   ]
     .filter(Boolean)
@@ -72,10 +84,10 @@ export async function rewriteFollowUpQuestion(options: {
 
   return runChatCompletion({
     systemPrompt:
-      "You rewrite follow-up questions into standalone questions without adding new information.",
+      "You rewrite follow-up questions into standalone questions with clear context resolution.",
     userPrompt: prompt,
     temperature: 0.1,
-    maxTokens: 80,
+    maxTokens: 120,
   });
 }
 
@@ -113,8 +125,9 @@ export async function generateTutorCopilotAnswer(options: {
   question: string;
   courseId: string;
   cohortId?: string;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
 }): Promise<string> {
-  const { question, courseId, cohortId } = options;
+  const { question, courseId, cohortId, history = [] } = options;
 
   // Import function schemas and executor
   const { tutorFunctionSchemas } = await import("./functionSchemas");
@@ -135,6 +148,10 @@ export async function generateTutorCopilotAnswer(options: {
   const systemMessage =
     "You are an intelligent AI assistant embedded in the Tutor Dashboard.\n" +
     "You help tutors analyze learner data by calling specific functions to fetch accurate information.\n\n" +
+    "STRICT BOUNDARIES:\n" +
+    "• You ONLY answer questions related to learners, cohorts, course progress, and friction signals.\n" +
+    "• If a question is NOT related to the course, learners, or their data (e.g., general knowledge about geography, politics, sports, or help with other topics), you MUST politely refuse and state that you are only programmed to assist with course-related data.\n" +
+    "• Never provide information from your general knowledge base that isn't derived from calling the provided functions.\n\n" +
     "CRITICAL RULES:\n" +
     "• You can ONLY access data for the current course (courseId is automatically provided)\n" +
     "• All data comes from function calls - use them to get accurate information\n" +
@@ -150,9 +167,24 @@ export async function generateTutorCopilotAnswer(options: {
     `Current context: courseId=${courseId}${cohortId ? `, cohortId=${cohortId} (${currentCohortName})` : ''}\n\n` +
     `IMPORTANT: When the user mentions a cohort by name (e.g., "Cohort 1"), you MUST use the corresponding cohort_id from the list above.`;
 
+  // Resolve potential follow-ups to standalone questions
+  let standaloneQuestion = question;
+  if (history.length > 0) {
+    try {
+      standaloneQuestion = await rewriteFollowUpQuestion({
+        question,
+        history,
+      });
+      console.log(`[REWRITE] "${question}" -> "${standaloneQuestion}"`);
+    } catch (rewriteErr) {
+      console.warn("[REWRITE ERROR] Falling back to original question:", rewriteErr);
+    }
+  }
+
   const messages: any[] = [
     { role: "system", content: systemMessage },
-    { role: "user", content: question },
+    ...history,
+    { role: "user", content: standaloneQuestion },
   ];
 
   try {

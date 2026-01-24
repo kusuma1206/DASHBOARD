@@ -108,6 +108,7 @@ tutorsRouter.post(
     const courseId = typeof req.body?.courseId === "string" ? req.body.courseId.trim() : "";
     const cohortId = typeof req.body?.cohortId === "string" ? req.body.cohortId.trim() : undefined;
     const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+    const history = Array.isArray(req.body?.history) ? req.body.history : [];
 
     if (!courseId) {
       res.status(400).json({ message: "courseId is required" });
@@ -130,6 +131,7 @@ tutorsRouter.post(
         question,
         courseId,
         cohortId,
+        history,
       });
 
       res.status(200).json({ answer });

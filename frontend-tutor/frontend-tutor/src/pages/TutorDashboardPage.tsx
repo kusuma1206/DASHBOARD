@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/tooltip";
 import { useEmailSelection } from '@/hooks/useEmailSelection';
 import { Checkbox } from '@/components/ui/checkbox';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 
 type TutorCourse = {
@@ -503,10 +505,20 @@ export default function TutorDashboardPage() {
     setTimeout(scrollAssistantToBottom, 100);
 
     try {
+      const history = assistantMessages.slice(-10).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
       const response = await apiRequest(
         'POST',
         '/api/tutors/assistant/query',
-        { courseId: selectedCourseId, cohortId: selectedCohortId, question: trimmedQuestion },
+        {
+          courseId: selectedCourseId,
+          cohortId: selectedCohortId,
+          question: trimmedQuestion,
+          history
+        },
         { headers }
       );
       const payload = await response.json();
@@ -1371,18 +1383,11 @@ export default function TutorDashboardPage() {
                       <p className="text-[9px] uppercase tracking-wider opacity-60 font-bold mb-1">
                         {message.role === 'assistant' ? 'Copilot' : 'You'}
                       </p>
-                      <div className="leading-relaxed whitespace-pre-line">
-                        {message.role === 'assistant' && /(?:^|\s|\n)\d{1,2}\./.test(message.content) ? (
-                          <ul className="space-y-1">
-                            {message.content
-                              .split(/(?=\s\d{1,2}\.|\n\d{1,2}\.)|^(\d{1,2}\.)/)
-                              .filter(Boolean)
-                              .map((part, pIdx) => (
-                                <li key={pIdx} className={pIdx > 0 ? "pt-1" : ""}>
-                                  {part.trim()}
-                                </li>
-                              ))}
-                          </ul>
+                      <div className="leading-relaxed assistant-markdown">
+                        {message.role === 'assistant' ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
                         ) : (
                           message.content
                         )}

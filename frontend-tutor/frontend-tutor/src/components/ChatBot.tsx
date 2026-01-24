@@ -92,8 +92,15 @@ export default function ChatBot({ courseName, courseId }: ChatBotProps) {
       const answer = await requestAssistantAnswer({
         courseId,
         courseName,
-        question,
         accessToken: freshSession.accessToken,
+        // Send up to 10 previous messages for context
+        history: messages
+          .filter(m => m.id !== "assistant-intro") // Don't send the intro
+          .slice(-10) // Limit context window
+          .map(m => ({
+            role: m.isBot ? "assistant" : "user" as const,
+            content: m.text
+          })),
       });
 
       const botResponse: Message = {
@@ -220,10 +227,9 @@ export default function ChatBot({ courseName, courseId }: ChatBotProps) {
 }
 
 async function requestAssistantAnswer(params: {
-  courseId?: string;
-  courseName?: string;
   question: string;
   accessToken: string;
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
 }): Promise<string> {
   if (!params.courseId) {
     throw new Error("I need to know which course you're viewing before I can help.");
@@ -239,6 +245,7 @@ async function requestAssistantAnswer(params: {
       question: params.question,
       courseId: params.courseId,
       courseTitle: params.courseName,
+      history: params.history,
     }),
   });
 
