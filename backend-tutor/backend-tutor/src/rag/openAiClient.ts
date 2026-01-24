@@ -109,34 +109,119 @@ export async function summarizeConversation(options: {
   });
 }
 
-export async function generateTutorCopilotAnswer(prompt: string): Promise<string> {
-  return runChatCompletion({
-    systemPrompt:
-      "You are Ottolearn's intelligent tutor analytics copilot. Your role is to help tutors understand their learners' progress and engagement.\n\n" +
-      "INTENT RECOGNITION:\n" +
-      "- If the tutor asks about a SPECIFIC COHORT (e.g., 'cohort 1', 'cohort 2'), provide data ONLY for that cohort\n" +
-      "- If the tutor asks GENERAL questions (e.g., 'how many students', 'which cohort', 'compare'), analyze ALL cohorts and provide course-wide insights\n" +
-      "- If the tutor asks about specific students by name, find them across all cohorts\n\n" +
-      "RESPONSE FORMAT:\n" +
-      "- Use clear headings and bullet points for multi-part answers\n" +
-      "- Always cite specific numbers and names from the provided data\n" +
-      "- For cohort comparisons, present data in a structured format\n" +
-      "- Flag at-risk learners (< 50% completion) when relevant\n" +
-      "- Keep responses concise but complete (3-8 sentences depending on complexity)\n\n" +
-      "- Use ONLY the provided learner roster, cohort details, and stats\n" +
-      "- Never invent or assume data not explicitly provided\n" +
-      "- SEARCH FOR STUDENTS: When asked about a specific student, ALWAYS search the 'Detailed roster' section for the line starting with '[STUDENT] name=\"Target Name\"'. Use the EXACT 'INDIVIDUAL PROGRESS' percentage and module count from that specific line.\n" +
-      "- ANALYZE FRICTION: If asked why a student is stalled or why performance is low, look at the 'Recent Signals' on their roster line. These contains specific events like 'Idle pattern detected', 'Quiz failed', or 'Tutor prompt asked'. Use these SPECIFIC signals to explain the 'why' instead of giving generic advice.\n" +
-      "- QUOTE EXACT DATA: Always quote the performance percentage and module count (e.g., '12% and 1/8 modules') exactly as provided in the roster. Never generalize or round these numbers.\n" +
-      "- IGNORE GENERIC NAMES: If a name sounds like a tool (e.g., 'Brave Browser'), treat it strictly as a student name if it appears in the roster.\n" +
-      "- NO GUESSING: Never invent data. If 'Recent Signals' are missing, say 'No detailed activity logs are available for this period'.\n" +
-      "- If information is missing, state it clearly\n\n" +
-      "EXAMPLES:\n" +
-      "Q: 'Why did Brave Browser perform low?' → Find '[STUDENT] name=\"Brave Browser\"'. Answer: 'Brave Browser has a completion rate of 12% (1/8 modules). Recent signals show they triggered a tab_hidden event after viewing a lesson, suggesting they may be distracted or disengaged.'\n" +
-      "Q: 'What is the progress of Brave Browser?' → Look for '[STUDENT] name=\"Brave Browser\"' in the roster. If it says 'INDIVIDUAL PROGRESS: 12%', answer 12%.\n",
-    userPrompt: prompt,
-    temperature: 0.15,
+export async function generateTutorCopilotAnswer(options: {
+  question: string;
+  courseId: string;
+  cohortId?: string;
+}): Promise<string> {
+  const { question, courseId, cohortId } = options;
+
+  // Import function schemas and executor
+  const { tutorFunctionSchemas } = await import("./functionSchemas");
+  const { executeTutorFunction } = await import("./functionExecutor");
+
+  // Fetch cohort information for context
+  const { prisma } = await import("../services/prisma");
+  const cohorts = await prisma.cohort.findMany({
+    where: { courseId },
+    select: { cohortId: true, name: true, isActive: true },
+    orderBy: { createdAt: "asc" },
   });
+
+  const cohortContext = cohorts.map(c => `- "${c.name}" (ID: ${c.cohortId})`).join("\n");
+  const currentCohortName = cohortId ? cohorts.find(c => c.cohortId === cohortId)?.name : null;
+
+  // Build system message with context
+  const systemMessage =
+    "You are an intelligent AI assistant embedded in the Tutor Dashboard.\n" +
+    "You help tutors analyze learner data by calling specific functions to fetch accurate information.\n\n" +
+    "CRITICAL RULES:\n" +
+    "• You can ONLY access data for the current course (courseId is automatically provided)\n" +
+    "• All data comes from function calls - use them to get accurate information\n" +
+    "• When asked 'Why' a student is struggling or 'What frictions' are seen, you MUST prioritize diagnostic tools: get_learner_activity_signals, get_stuck_indicators, and get_module_failure_reasons.\n" +
+    "• Specific friction signals ('Idle detected', 'Browser tab hidden', 'Learner signaled friction') are highly important. If you find these in the function results, EXPLICITLY state them in your answer.\n" +
+    "• When asked for 'top N' or 'best N', call get_top_learners with sort_order='desc'\n" +
+    "• When asked for 'bottom N' or 'worst N', call get_top_learners with sort_order='asc'\n" +
+    "• If a cohort is mentioned, use the cohort_id parameter\n" +
+    "• If no cohort is mentioned, omit cohort_id to query the entire course\n" +
+    "• Always format your answers clearly with specific numbers and names\n" +
+    "• Never make up data - only use what the functions return\n\n" +
+    `COHORTS IN THIS COURSE:\n${cohortContext}\n\n` +
+    `Current context: courseId=${courseId}${cohortId ? `, cohortId=${cohortId} (${currentCohortName})` : ''}\n\n` +
+    `IMPORTANT: When the user mentions a cohort by name (e.g., "Cohort 1"), you MUST use the corresponding cohort_id from the list above.`;
+
+  const messages: any[] = [
+    { role: "system", content: systemMessage },
+    { role: "user", content: question },
+  ];
+
+  try {
+    // First API call: Let AI decide which function to call
+    const firstResponse = await client.chat.completions.create({
+      model: env.llmModel,
+      messages,
+      functions: tutorFunctionSchemas,
+      function_call: "auto",
+      temperature: 0.1,
+    });
+
+    const firstChoice = firstResponse.choices[0];
+    const functionCall = firstChoice?.message?.function_call;
+
+    // If AI wants to call a function
+    if (functionCall) {
+      console.log(`[FUNCTION CALL] ${functionCall.name}(${functionCall.arguments})`);
+
+      // Execute the function
+      const functionArgs = JSON.parse(functionCall.arguments);
+      const functionResult = await executeTutorFunction(
+        functionCall.name,
+        functionArgs,
+        courseId
+      );
+
+      console.log(`[FUNCTION RESULT]`, JSON.stringify(functionResult).substring(0, 200));
+
+      // Add function call and result to message history
+      messages.push({
+        role: "assistant",
+        content: null,
+        function_call: functionCall,
+      });
+      messages.push({
+        role: "function",
+        name: functionCall.name,
+        content: JSON.stringify(functionResult),
+      });
+
+      // Second API call: Let AI format the result
+      const secondResponse = await client.chat.completions.create({
+        model: env.llmModel,
+        messages,
+        temperature: 0.2,
+      });
+
+      const answer = secondResponse.choices[0]?.message?.content?.trim();
+      if (!answer) {
+        throw new Error("OpenAI did not return a response after function call");
+      }
+
+      return answer;
+    }
+
+    // If AI doesn't need a function call (e.g., general question)
+    const answer = firstChoice?.message?.content?.trim();
+    if (!answer) {
+      throw new Error("OpenAI did not return a response");
+    }
+
+    return answer;
+  } catch (error) {
+    console.error("[TUTOR COPILOT ERROR] Full error:", error);
+    console.error("[TUTOR COPILOT ERROR] Error message:", error instanceof Error ? error.message : String(error));
+    console.error("[TUTOR COPILOT ERROR] Error stack:", error instanceof Error ? error.stack : 'No stack trace');
+    throw new Error("Unable to process your question. Please try again.");
+  }
 }
 
 export async function improveEmailMessage(options: {
