@@ -372,26 +372,26 @@ export default function TutorDashboardPage() {
   > = {
     engaged: {
       label: 'Engaged',
-      badgeClass: 'bg-emerald-100 text-emerald-700',
-      dotClass: 'bg-emerald-500',
+      badgeClass: 'bg-[#F0FFF4] text-[#38A169]',
+      dotClass: 'bg-[#38A169]',
       description: 'Actively interacting with course content.'
     },
     attention_drift: {
       label: 'Attention drift',
-      badgeClass: 'bg-amber-100 text-amber-700',
-      dotClass: 'bg-amber-500',
+      badgeClass: 'bg-[#FFF7ED] text-[#D97706]',
+      dotClass: 'bg-[#D97706]',
       description: 'Idle or pause cues observed.'
     },
     content_friction: {
       label: 'Content friction',
-      badgeClass: 'bg-rose-100 text-rose-700',
-      dotClass: 'bg-rose-500',
+      badgeClass: 'bg-[#FFF5F5] text-[#E53E3E]',
+      dotClass: 'bg-[#E53E3E]',
       description: 'Learner signaling friction.'
     },
     unknown: {
       label: 'Unknown',
-      badgeClass: 'bg-slate-200 text-slate-700',
-      dotClass: 'bg-slate-400',
+      badgeClass: 'bg-[#F1F5F9] text-[#475569]',
+      dotClass: 'bg-[#94A3B8]',
       description: 'Awaiting telemetry events.'
     }
   };
@@ -713,27 +713,27 @@ export default function TutorDashboardPage() {
       value: totalEnrollments,
       suffix: '',
       helper: `${activitySummary.engaged} currently engaged`,
-      color: 'text-emerald-600',
-      border: 'border-l-4 border-l-emerald-500/40',
-      bg: 'bg-emerald-50/30'
+      color: 'text-[#3182CE]',
+      border: 'border-l-4 border-l-[#90CDF4]',
+      bg: 'bg-white'
     },
     {
       label: 'Avg. progress',
       value: averageProgressPercent,
       suffix: '%',
       helper: progressResponse?.totalModules ? `${progressResponse.totalModules} modules tracked` : 'Across current cohort',
-      color: 'text-indigo-600',
-      border: 'border-l-4 border-l-indigo-500/40',
-      bg: 'bg-indigo-50/30'
+      color: 'text-[#38A169]',
+      border: 'border-l-4 border-l-[#9AE6B4]',
+      bg: 'bg-white'
     },
     {
       label: 'Critical alerts',
       value: activitySummary.content_friction,
       suffix: '',
       helper: 'Content friction signals',
-      color: 'text-rose-600',
-      border: 'border-l-4 border-l-rose-500/50',
-      bg: 'bg-rose-50/50'
+      color: 'text-[#E53E3E]',
+      border: 'border-l-4 border-l-[#FEB2B2]',
+      bg: 'bg-white'
     }
   ];
 
@@ -792,21 +792,21 @@ export default function TutorDashboardPage() {
 
   return (
     <SiteLayout>
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100">
-        <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10 text-slate-900">
-          <section id="overview" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+      <div className="min-h-screen">
+        <div className="w-full pb-16 pt-6 text-[#1A202C]">
+          <section id="overview" className="border-b border-[#E6EAF0] bg-white p-6 shadow-sm">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="space-y-4">
-                <p className="text-xs uppercase tracking-[0.35em] text-emerald-600">Tutor Command Center</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#718096]">Tutor Command Center</p>
                 <div>
-                  <h1 className="text-3xl font-semibold text-slate-900">Welcome back, {session.fullName ?? 'Tutor'}</h1>
-                  <p className="text-sm text-slate-600">
+                  <h1 className="text-3xl font-semibold text-[#1A202C]">Welcome back, {session.fullName ?? 'Tutor'}</h1>
+                  <p className="text-sm text-[#718096]">
                     Monitor every learner signal, respond to alerts, and guide your class from a single surface.
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Select value={selectedCourseId ?? undefined} onValueChange={(value) => setSelectedCourseId(value)}>
-                    <SelectTrigger className="w-full border-slate-300 bg-white text-left text-slate-900 sm:w-[280px]">
+                    <SelectTrigger className="w-full border-[#E2E8F0] bg-white text-left text-[#1A202C] sm:w-[280px]">
                       <SelectValue placeholder={coursesLoading ? 'Loading...' : 'Select course'} />
                     </SelectTrigger>
                     <SelectContent>
@@ -819,16 +819,16 @@ export default function TutorDashboardPage() {
                   </Select>
                   <Button
                     variant="outline"
-                    className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                    className="border-[#E2E8F0] text-[#4A5568] hover:bg-[#F8FAFC]"
                     onClick={handleLogout}
                   >
                     Logout
                   </Button>
                 </div>
                 {courses.length > 0 && selectedCourseId && (
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-[#718096]">
                     Showing data for{' '}
-                    <span className="font-semibold">
+                    <span className="font-semibold text-[#1A202C]">
                       {courses.find((c) => c.courseId === selectedCourseId)?.title ?? 'your course'}
                     </span>
                     .
@@ -840,64 +840,63 @@ export default function TutorDashboardPage() {
                   <motion.div
                     key={stat.label}
                     whileHover={{
-                      y: -5,
-                      scale: 1.02,
-                      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05)"
+                      y: -2,
+                      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
                     }}
                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                    className={`flex flex-col h-full min-h-[140px] rounded-2xl border border-slate-200 p-6 shadow-sm cursor-default transition-all ${stat.bg} ${stat.border}`}
+                    className={`flex flex-col h-full min-h-[140px] rounded-xl border border-[#E6EAF0] p-6 shadow-sm cursor-default transition-all ${stat.bg} ${stat.border}`}
                   >
-                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500">{stat.label}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#718096]">{stat.label}</p>
                     <div className={`mt-2 text-4xl font-bold tracking-tight ${stat.color}`}>
                       <NumberTicker value={stat.value} suffix={stat.suffix} />
                     </div>
-                    <p className="mt-auto pt-4 text-[11px] font-medium text-slate-500 leading-relaxed border-t border-slate-200/50">{stat.helper}</p>
+                    <p className="mt-auto pt-4 text-[11px] font-medium text-[#718096] leading-relaxed border-t border-[#EDF2F7]">{stat.helper}</p>
                   </motion.div>
                 ))}
               </div>
             </div>
           </section>
 
-          <nav className="mt-6 flex flex-wrap gap-3 text-sm text-slate-600" aria-label="Tutor sections">
+          <nav className="mt-4 flex flex-wrap gap-2 text-sm text-[#718096]" aria-label="Tutor sections">
             {navItems.map((item) => (
               <button
                 type="button"
                 key={item.id}
                 onClick={() => handleSectionNav(item.id)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 font-medium tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="rounded-full border border-[#E2E8F0] bg-white px-4 py-1.5 font-medium tracking-wide text-[#4A5568] shadow-sm transition hover:bg-[#F8FAFC] hover:text-[#2D3748] text-xs"
               >
                 {item.label}
               </button>
             ))}
           </nav>
 
-          <section id="classroom" className="mt-12 space-y-6">
+          <section id="classroom" className="mt-8 space-y-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">Classroom</p>
-              <h2 className="text-2xl font-semibold text-slate-900">Roster & Throughput</h2>
-              <p className="text-sm text-slate-600">Stay on top of enrollments and module completion at a glance.</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#718096]">Classroom</p>
+              <h2 className="text-xl font-semibold text-[#1A202C]">Roster & Throughput</h2>
+              <p className="text-xs text-[#718096]">Stay on top of enrollments and module completion at a glance.</p>
             </div>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card className="border-slate-200 bg-white text-slate-900 shadow-md">
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
                 <CardHeader>
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <CardTitle className="text-slate-900">Enrollments</CardTitle>
-                      <p className="text-sm text-slate-600">{totalEnrollments} learners in the cohort</p>
+                      <CardTitle className="text-[#1A202C]">Enrollments</CardTitle>
+                      <p className="text-sm text-[#718096]">{totalEnrollments} learners in the cohort</p>
                     </div>
                     <div className="flex items-center gap-3">
                       {enrollmentSelection.selectedEmails.size > 0 && (
                         <Button
                           onClick={() => handleBulkEmail('enrollment')}
                           size="sm"
-                          className="bg-emerald-600 text-white hover:bg-emerald-500 animate-in fade-in zoom-in duration-200 shrink-0"
+                          className="bg-[#2D3748] text-white hover:bg-[#1A202C] animate-in fade-in zoom-in duration-200 shrink-0"
                         >
                           <Mail className="mr-2 h-4 w-4" />
                           Email Group ({enrollmentSelection.selectedEmails.size})
                         </Button>
                       )}
                       <Select value={selectedCohortId ?? undefined} onValueChange={(value) => setSelectedCohortId(value)}>
-                        <SelectTrigger className="w-full border-slate-300 bg-white text-left text-slate-900 sm:w-[220px]">
+                        <SelectTrigger className="w-full border-[#E2E8F0] bg-white text-left text-[#1A202C] sm:w-[220px]">
                           <SelectValue placeholder={cohortsLoading ? 'Loading cohorts...' : 'Select cohort batch'} />
                         </SelectTrigger>
                         <SelectContent>
@@ -913,72 +912,74 @@ export default function TutorDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   {enrollmentsLoading ? (
-                    <p className="text-sm text-slate-600">Loading enrollments...</p>
+                    <p className="text-sm text-[#718096]">Loading enrollments...</p>
                   ) : (enrollmentsResponse?.enrollments ?? []).length === 0 ? (
-                    <p className="text-sm text-slate-600">No enrollments yet.</p>
+                    <p className="text-sm text-[#718096]">No enrollments yet.</p>
                   ) : (
-                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-2">
+                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-2">
                       <Table>
                         <TableHeader>
-                          <TableRow>
+                          <TableRow className="bg-[#F8FAFC] pointer-events-none hover:bg-[#F8FAFC] border-[#EDF2F7]">
                             <TableHead className="w-12">
                               <Checkbox
                                 checked={enrollmentSelection.isAllSelected((enrollmentsResponse?.enrollments ?? []).map(e => e.email))}
                                 onCheckedChange={() => enrollmentSelection.toggleSelectAll((enrollmentsResponse?.enrollments ?? []).map(e => e.email))}
-                                className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                                className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748]"
                               />
                             </TableHead>
-                            <TableHead className="text-slate-500">Learner</TableHead>
-                            <TableHead className="text-slate-500">Email</TableHead>
-                            <TableHead className="text-slate-500">Status</TableHead>
-                            <TableHead className="text-slate-500">Enrolled</TableHead>
-                            <TableHead className="w-12 text-slate-500"></TableHead>
+                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Learner</TableHead>
+                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Email</TableHead>
+                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Status</TableHead>
+                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Enrolled</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {(enrollmentsResponse?.enrollments ?? []).map((enrollment) => (
-                            <TableRow key={enrollment.enrollmentId} className="border-slate-100 hover:bg-slate-50/80 cursor-pointer group/row transition-colors">
+                            <TableRow key={enrollment.enrollmentId} className="border-[#EDF2F7] hover:bg-[#F1F5F9] cursor-pointer group/row transition-colors">
                               <TableCell className="w-12">
                                 <Checkbox
                                   checked={enrollmentSelection.selectedEmails.has(enrollment.email)}
                                   onCheckedChange={() => enrollmentSelection.toggleEmailSelection(enrollment.email)}
-                                  className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                                  className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748]"
                                 />
                               </TableCell>
-                              <TableCell className="text-slate-900 font-semibold py-3 px-4">
+                              <TableCell className="text-[#4A5568] font-semibold py-3 px-4">
                                 {enrollment.fullName}
                               </TableCell>
                               <TableCell className="py-3 px-4">
-                                <div className="text-slate-500 text-[10px] leading-tight">{enrollment.email}</div>
+                                <div className="flex items-center gap-2 group/email">
+                                  <div className="text-[#718096] text-[10px] leading-tight truncate">{enrollment.email}</div>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 w-6 p-0 text-[#A0AEC0] hover:text-[#2D3748] hover:bg-[#EDF2F7] rounded-full transition-all shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenEmailModal({ email: enrollment.email, fullName: enrollment.fullName });
+                                          }}
+                                        >
+                                          <Mail className="h-3 w-3" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="bg-[#1A202C] text-white border-0 text-[10px] px-2 py-1">
+                                        Email learner
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </div>
                               </TableCell>
                               <TableCell className="py-3 px-4">
-                                <span className="rounded-full bg-emerald-50/50 border border-emerald-100/50 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-600/80 tracking-tight">
+                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight border ${enrollment.status.toLowerCase() === 'active'
+                                    ? 'bg-[#F0FFF4] text-[#38A169] border-[#C6F6D5]'
+                                    : 'bg-[#EDF2F7] text-[#475569] border-[#E2E8F0]'
+                                  }`}>
                                   {enrollment.status}
                                 </span>
                               </TableCell>
-                              <TableCell className="text-slate-400 text-[10px] py-3 px-4 font-medium">{new Date(enrollment.enrolledAt).toLocaleDateString()}</TableCell>
-                              <TableCell className="w-12 py-3 px-4">
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleOpenEmailModal({ email: enrollment.email, fullName: enrollment.fullName });
-                                        }}
-                                      >
-                                        <Mail className="h-4 w-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="left" className="bg-slate-900 text-white border-0 text-[10px] px-2 py-1">
-                                      Email learner
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </TableCell>
+                              <TableCell className="text-[#A0AEC0] text-[10px] py-3 px-4 font-medium">{new Date(enrollment.enrolledAt).toLocaleDateString()}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -988,49 +989,52 @@ export default function TutorDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 bg-white text-slate-900 shadow-md">
+              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
                 <CardHeader>
-                  <CardTitle className="text-slate-900">Learner progress</CardTitle>
-                  <p className="text-xs text-slate-400 font-normal leading-relaxed">
+                  <CardTitle className="text-[#1A202C]">Learner progress</CardTitle>
+                  <p className="text-xs text-[#718096] font-normal leading-relaxed">
                     Average completion {averageProgressPercent}% across {progressResponse?.totalModules ?? 0} modules
                   </p>
                 </CardHeader>
                 <CardContent>
                   {progressLoading ? (
-                    <p className="text-sm text-slate-600">Loading progress...</p>
+                    <p className="text-sm text-[#718096]">Loading progress...</p>
                   ) : (progressResponse?.learners ?? []).length === 0 ? (
-                    <p className="text-sm text-slate-600">No progress yet.</p>
+                    <p className="text-sm text-[#718096]">No progress yet.</p>
                   ) : (
                     <div className="relative group/scroll">
-                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-2">
+                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-2">
                         <Table>
                           <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-slate-500">Learner</TableHead>
-                              <TableHead className="text-slate-500">Modules</TableHead>
-                              <TableHead className="text-slate-500">Percent</TableHead>
+                            <TableRow className="bg-[#F8FAFC] pointer-events-none border-[#EDF2F7]">
+                              <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Learner</TableHead>
+                              <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Modules</TableHead>
+                              <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Percent</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {(progressResponse?.learners ?? []).map((learner) => (
-                              <TableRow key={learner.userId} className="border-slate-100 hover:bg-slate-50/80 cursor-pointer transition-colors group/row">
+                            {(() => {
+                              const learners = progressResponse?.learners ?? [];
+                              return [...learners].sort((a, b) => a.percent - b.percent);
+                            })().map((learner) => (
+                              <TableRow key={learner.userId} className="border-[#EDF2F7] hover:bg-[#F1F5F9] cursor-pointer transition-colors group/row">
 
                                 <TableCell className="py-2.5 px-4">
-                                  <div className="font-semibold text-slate-900 leading-tight">{learner.fullName}</div>
-                                  <div className="text-[10px] text-slate-500 leading-tight mt-0.5">{learner.email}</div>
+                                  <div className="font-semibold text-[#4A5568] leading-tight">{learner.fullName}</div>
+                                  <div className="text-[10px] text-[#718096] leading-tight mt-0.5">{learner.email}</div>
                                 </TableCell>
-                                <TableCell className="text-slate-500 text-[10px] py-2.5 px-4 font-medium">
+                                <TableCell className="text-[#718096] text-[10px] py-2.5 px-4 font-medium">
                                   {learner.completedModules}/{learner.totalModules}
                                 </TableCell>
-                                <TableCell className="text-slate-900 py-2.5 px-4 min-w-[140px]">
+                                <TableCell className="text-[#1A202C] py-2.5 px-4 min-w-[140px]">
                                   <div className="flex items-center gap-3">
-                                    <div className="h-2.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                                    <div className="h-2.5 flex-1 rounded-full bg-[#EDF2F7] overflow-hidden">
                                       <div
-                                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 shadow-[0_0_8px_rgba(52,211,153,0.3)]"
+                                        className="h-full rounded-full bg-[#38A169] shadow-sm"
                                         style={{ width: `${learner.percent}%` }}
                                       />
                                     </div>
-                                    <span className="text-[11px] font-bold text-slate-600 min-w-[32px] text-right">{learner.percent}%</span>
+                                    <span className="text-[11px] font-bold text-[#718096] min-w-[32px] text-right">{learner.percent}%</span>
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1046,39 +1050,39 @@ export default function TutorDashboardPage() {
             </div>
           </section>
 
-          <section id="monitoring" className="mt-12 space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <section id="monitoring" className="mt-8 space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-emerald-600">Intervention Zone</p>
-                <h2 className="text-2xl font-semibold text-slate-900">Engagement & Alerts</h2>
-                <p className="text-sm text-slate-600">
+                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#718096]">Intervention Zone</p>
+                <h2 className="text-xl font-semibold text-[#1A202C]">Engagement & Alerts</h2>
+                <p className="text-xs text-[#718096]">
                   Assess signals and take directed action to guide learners back to flow.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mt-4">
+            <div className="flex flex-wrap gap-2 mt-2">
               {statusOrder.map((key) => (
                 <div
                   key={key}
-                  className="flex items-center gap-2 rounded-full border border-slate-100 bg-white px-3 py-1 shadow-sm transition hover:border-slate-200"
+                  className="flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-2 py-0.5 shadow-sm transition hover:border-[#CBD5E0]"
                 >
-                  <span className={`h-2 w-2 rounded-full ${statusMeta[key].dotClass} animate-pulse`} />
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-700">{statusMeta[key].label}</p>
-                    <span className="h-1 w-1 rounded-full bg-slate-200" />
-                    <p className="text-[10px] font-medium text-slate-500">{activitySummary[key as keyof ActivitySummary]}</p>
+                  <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[key].dotClass} animate-pulse`} />
+                  <div className="flex items-center gap-1">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-[#4A5568]">{statusMeta[key].label}</p>
+                    <span className="h-1 w-1 rounded-full bg-[#E2E8F0]" />
+                    <p className="text-[9px] font-medium text-[#718096]">{activitySummary[key as keyof ActivitySummary]}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2 mt-6">
-              <Card className="border-slate-200 bg-white text-slate-900 shadow-md flex flex-col">
+            <div className="grid gap-4 xl:grid-cols-2 mt-4">
+              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)] flex flex-col">
                 <CardHeader className="flex flex-row items-start justify-between space-y-0">
                   <div>
-                    <CardTitle className="text-slate-900">Alert Feed</CardTitle>
-                    <p className="text-xs text-slate-500">
+                    <CardTitle className="text-[#1A202C]">Alert Feed</CardTitle>
+                    <p className="text-xs text-[#718096]">
                       {activityFetching ? 'Refreshing telemetry...' : 'Snapshots refresh automatically every 30 seconds.'}
                     </p>
                   </div>
@@ -1087,20 +1091,20 @@ export default function TutorDashboardPage() {
                       <Button
                         onClick={() => handleBulkEmail('alert')}
                         size="sm"
-                        className="bg-emerald-600 text-white hover:bg-emerald-500 animate-in fade-in zoom-in duration-200 shrink-0"
+                        className="bg-[#2D3748] text-white hover:bg-[#1A202C] animate-in fade-in zoom-in duration-200 shrink-0"
                       >
                         <Mail className="mr-2 h-4 w-4" />
                         Email Group ({alertSelection.selectedEmails.size})
                       </Button>
                     )}
-                    <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 border border-slate-100">
+                    <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-[#F8FAFC] border border-[#EDF2F7]">
                       <Checkbox
                         id="select-all-alerts"
                         checked={alertSelection.isAllSelected((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
                         onCheckedChange={() => alertSelection.toggleSelectAll((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
-                        className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
+                        className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748]"
                       />
-                      <label htmlFor="select-all-alerts" className="text-[10px] font-bold uppercase tracking-wider text-slate-500 cursor-pointer select-none">
+                      <label htmlFor="select-all-alerts" className="text-[10px] font-bold uppercase tracking-wider text-[#718096] cursor-pointer select-none">
                         Select All
                       </label>
                     </div>
@@ -1108,22 +1112,22 @@ export default function TutorDashboardPage() {
                 </CardHeader>
                 <CardContent className="flex-1">
                   {activityError ? (
-                    <p className="text-sm text-rose-500">
+                    <p className="text-sm text-[#E53E3E]">
                       Unable to load learner telemetry right now. Please retry shortly.
                     </p>
                   ) : activityLoading ? (
                     <div className="space-y-3">
                       {[0, 1, 2].map((index) => (
-                        <Skeleton key={index} className="h-24 w-full rounded-2xl bg-slate-100" />
+                        <Skeleton key={index} className="h-24 w-full rounded-2xl bg-[#F8FAFC]" />
                       ))}
                     </div>
                   ) : (activityResponse?.learners ?? []).length === 0 ? (
-                    <p className="text-sm text-slate-600">
+                    <p className="text-sm text-[#718096]">
                       No telemetry yet. As learners watch, read, attempt quizzes, or interact with widgets, they will appear here.
                     </p>
                   ) : (
                     <div className="relative group/scroll">
-                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-2 pb-12">
+                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-2 pb-12">
                         <div className="space-y-2">
                           {(activityResponse?.learners ?? []).map((learner) => {
                             const directoryIdentity = learnerDirectory.get(learner.userId);
@@ -1141,23 +1145,23 @@ export default function TutorDashboardPage() {
                                   checked={identity?.email ? alertSelection.selectedEmails.has(identity.email) : false}
                                   onCheckedChange={() => identity?.email && alertSelection.toggleEmailSelection(identity.email)}
                                   disabled={!identity?.email}
-                                  className="border-slate-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 shrink-0"
+                                  className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748] shrink-0"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => setSelectedLearnerId(learner.userId)}
-                                  className={`flex-1 rounded-2xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${isActive ? 'border-emerald-200 bg-emerald-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'
+                                  className={`flex-1 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2E8F0] ${isActive ? 'border-[#CBD5E0] bg-[#F8FAFC] shadow-sm' : 'border-[#EDF2F7] bg-white hover:bg-[#F8FAFC]'
                                     }`}
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-900 line-clamp-1">
+                                      <p className="text-sm font-semibold text-[#1A202C] line-clamp-1">
                                         {identity.fullName ?? 'Learner'}{' '}
                                         {!identity.fullName && (
-                                          <span className="text-xs text-slate-500">({learner.userId.slice(0, 6)})</span>
+                                          <span className="text-xs text-[#718096]">({learner.userId.slice(0, 6)})</span>
                                         )}
                                       </p>
-                                      <p className="text-[11px] text-slate-500 truncate">{identity.email ?? 'Email unavailable'}</p>
+                                      <p className="text-[11px] text-[#718096] truncate">{identity.email ?? 'Email unavailable'}</p>
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                       <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
@@ -1167,7 +1171,7 @@ export default function TutorDashboardPage() {
                                         <Button
                                           variant="ghost"
                                           size="sm"
-                                          className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600"
+                                          className="h-8 w-8 p-0 text-[#A0AEC0] hover:text-[#2D3748] hover:bg-[#EDF2F7] rounded-full"
                                           title="Email learner about this engagement issue"
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -1179,8 +1183,8 @@ export default function TutorDashboardPage() {
                                       )}
                                     </div>
                                   </div>
-                                  {reasonLabel && <p className="mt-2 text-xs text-slate-600 line-clamp-2">{reasonLabel}</p>}
-                                  <p className="mt-2 text-[10px] text-slate-400">Updated {formatTimestamp(learner.createdAt)}</p>
+                                  {reasonLabel && <p className="mt-2 text-xs text-[#4A5568] line-clamp-2">{reasonLabel}</p>}
+                                  <p className="mt-2 text-[10px] text-[#A0AEC0]">Updated {formatTimestamp(learner.createdAt)}</p>
                                 </button>
                               </div>
                             );
@@ -1193,13 +1197,13 @@ export default function TutorDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-slate-200 bg-white text-slate-900 shadow-md flex flex-col">
+              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)] flex flex-col">
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3 min-h-[56px]">
                     <div>
-                      <CardTitle className="text-slate-900">Learner detail</CardTitle>
+                      <CardTitle className="text-[#1A202C]">Learner detail</CardTitle>
                       {selectedIdentity && (
-                        <p className="text-sm text-emerald-600 font-medium truncate max-w-[200px]">
+                        <p className="text-sm text-[#2D3748] font-medium truncate max-w-[200px]">
                           {selectedIdentity.fullName}
                         </p>
                       )}
@@ -1217,21 +1221,21 @@ export default function TutorDashboardPage() {
                 <CardContent className="flex-1">
                   {!selectedLearnerId ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
-                      <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4">
-                        <MessageSquare className="w-8 h-8 text-slate-300" />
+                      <div className="w-16 h-16 rounded-full bg-[#F8FAFC] flex items-center justify-center mb-4">
+                        <MessageSquare className="w-8 h-8 text-[#CBD5E0]" />
                       </div>
-                      <h3 className="text-lg font-semibold text-slate-900">No learner selected</h3>
-                      <p className="text-sm text-slate-500 max-w-[200px] mt-2">
+                      <h3 className="text-lg font-semibold text-[#1A202C]">No learner selected</h3>
+                      <p className="text-sm text-[#718096] max-w-[200px] mt-2">
                         Select a learner from the list to view their engagement details and recent activity.
                       </p>
                     </div>
                   ) : (
                     <div className="relative group/scroll">
-                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent hover:scrollbar-thumb-slate-300 scroll-smooth pr-1 pb-12">
+                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-1 pb-12">
                         {historyLoading || historyFetching ? (
                           <div className="space-y-2">
                             {[0, 1, 2].map((index) => (
-                              <Skeleton key={index} className="h-20 w-full rounded-xl bg-slate-100" />
+                              <Skeleton key={index} className="h-20 w-full rounded-xl bg-[#F8FAFC]" />
                             ))}
                           </div>
                         ) : sortedHistoryEvents.length === 0 ? (
@@ -1316,7 +1320,7 @@ export default function TutorDashboardPage() {
                 >
                   <Button
                     onClick={() => setIsAssistantSheetOpen(true)}
-                    className="h-12 px-6 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl flex items-center gap-2 group transition-all hover:scale-105 active:scale-95"
+                    className="h-12 px-6 rounded-full bg-[#2D3748] hover:bg-[#1A202C] text-white shadow-xl flex items-center gap-2 group transition-all hover:scale-105 active:scale-95"
                   >
                     <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
                     <span className="font-semibold tracking-tight text-sm">AI Copilot</span>
@@ -1406,7 +1410,7 @@ export default function TutorDashboardPage() {
               )}
             </div>
 
-            <div className="p-4 border-t border-slate-200 bg-white">
+            <div className="p-4 border-t border-[#EDF2F7] bg-white">
               <form onSubmit={handleAssistantSubmit} className="flex flex-row flex-nowrap items-center gap-2">
                 <Input
                   value={assistantInput}
@@ -1419,12 +1423,12 @@ export default function TutorDashboardPage() {
                   }}
                   placeholder="Ask about learners..."
                   disabled={!selectedCourseId}
-                  className="flex-1 border-slate-300 focus:border-emerald-500 bg-white text-slate-900 placeholder:text-slate-500 rounded-xl h-11"
+                  className="flex-1 border-[#E2E8F0] focus:border-[#2D3748] bg-white text-[#1A202C] placeholder:text-[#A0AEC0] rounded-xl h-11"
                 />
                 <Button
                   type="submit"
                   disabled={!selectedCourseId || assistantLoading || !assistantInput.trim()}
-                  className="bg-emerald-600 text-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-600 border border-transparent shadow-sm rounded-xl px-4 h-11 shrink-0 font-bold whitespace-nowrap"
+                  className="bg-[#2D3748] text-white hover:bg-[#1A202C] shadow-sm rounded-xl px-4 h-11 shrink-0 font-bold whitespace-nowrap"
                 >
                   {assistantLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ask'}
                 </Button>

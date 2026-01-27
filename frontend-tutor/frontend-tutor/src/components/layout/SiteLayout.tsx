@@ -93,26 +93,25 @@ export function SiteLayout({
       className={cn(FONT_INTER_STACK, "min-h-screen w-full")}
       style={{ background: DASHBOARD_GRADIENT_BG }}
     >
-      <div className="mx-auto max-w-[96%] py-4 sm:py-8">
+      <div className="w-full">
         <main
           {...restMainProps}
           className={cn(
-            "relative overflow-hidden rounded-[22px] bg-white shadow-2xl",
-            "p-6 sm:p-8 lg:p-10",
-            "transition-all duration-500",
+            "relative transition-all duration-500 min-h-screen",
             mainClassName,
             className,
           )}
-          style={{ ...mainStyle, boxShadow: DASHBOARD_CARD_SHADOW }}
         >
           <div
             className={cn(
-              "space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500",
+              "animate-in fade-in slide-in-from-bottom-4 duration-500",
               contentClassName,
             )}
           >
             {showHeader ? <SiteHeader {...mergedHeaderProps} /> : null}
-            {children}
+            <div className="px-4 sm:px-6 lg:px-8">
+              {children}
+            </div>
           </div>
         </main>
       </div>

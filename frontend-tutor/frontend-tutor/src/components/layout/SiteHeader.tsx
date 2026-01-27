@@ -84,7 +84,7 @@ export function SiteHeader({
       .toUpperCase();
 
   return (
-    <header className={cn("border-b border-gray-100/50 pb-4", className)}>
+    <header className={cn("border-b border-[#E2E8F0] py-3 px-4 sm:px-6 lg:px-8 bg-white", className)}>
       <div className="flex items-center gap-4">
         <div className="font-extrabold text-2xl tracking-tight text-gray-900">
           Otto
@@ -101,8 +101,8 @@ export function SiteHeader({
               className={cn(
                 "relative pb-1 text-sm font-semibold transition-colors",
                 isActive(link.href)
-                  ? "text-gray-900"
-                  : "text-gray-600 hover:text-gray-900",
+                  ? "text-[#2D3748]"
+                  : "text-[#718096] hover:text-[#2D3748]",
               )}
               aria-current={isActive(link.href) ? "page" : undefined}
             >
@@ -116,7 +116,7 @@ export function SiteHeader({
               </span>
               <span
                 className={cn(
-                  "absolute left-0 -bottom-1 h-0.5 w-full rounded-full bg-[#0ea5a7] transition-opacity",
+                  "absolute left-0 -bottom-1 h-0.5 w-full rounded-full bg-[#2D3748] transition-opacity",
                   isActive(link.href) ? "opacity-100" : "opacity-0",
                 )}
                 aria-hidden="true"

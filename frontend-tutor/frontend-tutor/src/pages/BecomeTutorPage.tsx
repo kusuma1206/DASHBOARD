@@ -16,7 +16,8 @@ import {
   TrendingUp,
   Brain,
   Layout,
-  MessageSquare
+  MessageSquare,
+  ChevronRight
 } from 'lucide-react';
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion';
 import { buildApiUrl } from "@/lib/api";
@@ -76,8 +77,9 @@ const GrainOverlay = () => (
   </div>
 );
 
+
 const SectionHeader = ({ badge, title, subline, light = false }: { badge?: string; title: string; subline?: string; light?: boolean }) => (
-  <div className="mb-16 text-center max-w-3xl mx-auto">
+  <div className="mb-8 text-center max-w-3xl mx-auto">
     {badge && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -110,55 +112,225 @@ const SectionHeader = ({ badge, title, subline, light = false }: { badge?: strin
   </div>
 );
 
-const StepItem = ({ id, title, desc }: { id: string; title: string; desc: string }) => {
-  const ref = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ["start center", "center center", "center start"]
-  });
+const CapabilityCard = ({ title, desc, mockup, badge }: { title: string; desc: string; mockup: React.ReactNode; badge: string }) => (
+  <motion.div
+    whileHover={{ y: -10, scale: 1.02 }}
+    className="w-[380px] h-[480px] shrink-0 bg-white/60 backdrop-blur-xl border border-white shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col group transition-all duration-500"
+  >
+    {/* Mini UI Preview Area */}
+    <div className="h-[240px] relative overflow-hidden bg-slate-50/50 flex items-center justify-center p-6 border-b border-slate-100">
+      <div className="absolute inset-0 bg-gradient-to-br from-[#B24531]/5 to-transparent opacity-50" />
+      <div className="relative z-10 w-full transform group-hover:scale-105 transition-transform duration-700">
+        {mockup}
+      </div>
+    </div>
 
-  const opacity = useTransform(scrollYProgress, [0, 0.4, 0.6, 1], [0.15, 1, 1, 0.15]);
-  const scale = useTransform(scrollYProgress, [0, 0.4, 0.6, 1], [0.95, 1, 1, 0.95]);
-  const fillProgress = useTransform(scrollYProgress, [0, 0.45, 0.55, 1], [0, 1, 1, 1]);
-
-  return (
-    <motion.div
-      ref={ref}
-      style={{ opacity, scale }}
-      className="flex flex-col md:flex-row items-center gap-12 md:gap-24 py-16 border-b border-[#1E3A47]/5 last:border-0"
-    >
-      <div className="relative flex-shrink-0">
-        <div className="text-[10rem] md:text-[12rem] font-black leading-none select-none relative"
-          style={{
-            WebkitTextStroke: '2px rgba(30, 58, 71, 0.08)',
-            color: 'transparent',
-            letterSpacing: '-0.05em'
-          }}
-        >
-          {id}
-          <motion.div
-            className="absolute bottom-0 left-0 right-0 overflow-hidden text-[#B24531] pointer-events-none"
-            style={{
-              height: useTransform(fillProgress, [0, 1], ["0%", "100%"])
-            }}
-          >
-            <div className="text-[10rem] md:text-[12rem] font-black leading-none absolute bottom-0"
-              style={{ letterSpacing: '-0.05em' }}
-            >
-              {id}
-            </div>
-          </motion.div>
+    {/* Content Area */}
+    <div className="p-8 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="px-3 py-1 rounded-full bg-[#B24531]/5 text-[#B24531] text-[10px] font-black uppercase tracking-widest border border-[#B24531]/10">
+          {badge}
         </div>
       </div>
-      <div className="flex-1 text-center md:text-left">
-        <h4 className="text-3xl md:text-5xl font-black text-[#1E3A47] tracking-tighter leading-[0.85] max-w-xl">
-          {title}
-        </h4>
-        <p className="mt-6 text-lg md:text-xl text-[#1E3A47]/40 font-bold max-w-2xl leading-relaxed">
-          {desc}
-        </p>
+      <h4 className="text-xl font-bold text-[#1E3A47] group-hover:text-[#B24531] transition-colors">{title}</h4>
+      <p className="text-sm text-[#1E3A47]/60 font-medium leading-relaxed">
+        {desc}
+      </p>
+    </div>
+  </motion.div>
+);
+
+const MiniCourseBuilder = () => (
+  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+    <div className="h-6 bg-slate-50 border-b border-slate-100 px-3 flex items-center gap-1.5">
+      <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+      <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+      <div className="h-2 w-16 bg-slate-200 rounded" />
+    </div>
+    <div className="p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="w-6 h-6 rounded bg-orange-50 flex items-center justify-center text-[#B24531] text-[8px] font-bold">01</div>
+        <div className="h-1.5 w-24 bg-slate-100 rounded" />
       </div>
-    </motion.div>
+      <div className="flex items-center gap-2 ml-8">
+        <div className="w-4 h-4 rounded-full bg-[#B24531]/10" />
+        <div className="h-1.5 w-16 bg-slate-50 rounded" />
+      </div>
+    </div>
+  </div>
+);
+
+const MiniEarnings = () => (
+  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
+    <div className="flex justify-between items-start">
+      <div className="text-[10px] font-black text-[#1E3A47]/40 uppercase">Split</div>
+      <div className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[8px] font-bold">80% Share</div>
+    </div>
+    <div className="flex items-end gap-1 h-12">
+      {[30, 60, 45, 80, 55, 90, 70, 100].map((h, i) => (
+        <div key={i} className="flex-1 bg-[#B24531]/20 rounded-t-xs" style={{ height: `${h}%` }} />
+      ))}
+    </div>
+    <div className="text-lg font-black text-[#1E3A47] tracking-tight">$4,290</div>
+  </div>
+);
+
+const MiniAI = () => (
+  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+    <div className="flex gap-2">
+      <div className="w-5 h-5 shrink-0 rounded-full bg-[#1E3A47] flex items-center justify-center text-white"><Sparkles size={10} /></div>
+      <div className="space-y-1.5 flex-1">
+        <div className="h-1.5 w-full bg-slate-100 rounded" />
+        <div className="h-1.5 w-2/3 bg-slate-100 rounded" />
+      </div>
+    </div>
+    <div className="pl-7">
+      <div className="px-3 py-1.5 bg-slate-50 border border-[#B24531]/20 rounded-lg text-[8px] font-bold text-[#B24531] flex justify-between items-center group-hover:bg-[#B24531]/5 transition-colors">
+        Suggest follow-up
+        <ArrowRight size={8} />
+      </div>
+    </div>
+  </div>
+);
+
+const MiniAnalytics = () => (
+  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex gap-4 items-center">
+    <div className="w-16 h-16 rounded-full border-4 border-slate-100 border-t-[#B24531] flex items-center justify-center relative">
+      <span className="text-[10px] font-black text-[#1E3A47]">84%</span>
+    </div>
+    <div className="flex-1 space-y-2">
+      <div className="space-y-1">
+        <div className="flex justify-between text-[8px] font-black text-slate-400">
+          <span>Active</span>
+          <span className="text-emerald-500">+12%</span>
+        </div>
+        <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full w-2/3 bg-[#B24531]" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const CapabilityMarquee = ({ items, reverse = false }: { items: any[]; reverse?: boolean }) => {
+  return (
+    <div className="flex overflow-hidden relative">
+      <motion.div
+        animate={{ x: reverse ? ["-50%", "0%"] : ["0%", "-50%"] }}
+        transition={{
+          duration: 35,
+          repeat: Infinity,
+          ease: "linear",
+        }}
+        className="flex gap-8 py-8 px-4"
+      >
+        {[...items, ...items].map((item, idx) => (
+          <CapabilityCard key={idx} {...item} />
+        ))}
+      </motion.div>
+    </div>
+  );
+};
+
+const FloatingShapes = () => (
+  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <motion.div
+      animate={{
+        y: [0, -20, 0],
+        x: [0, 15, 0],
+        opacity: [0.03, 0.06, 0.03],
+      }}
+      transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+      className="absolute top-[20%] left-[10%] w-[400px] h-[400px] rounded-full bg-gradient-to-tr from-[#B24531] to-transparent blur-[120px]"
+    />
+    <motion.div
+      animate={{
+        y: [0, 25, 0],
+        x: [0, -15, 0],
+        opacity: [0.02, 0.05, 0.02],
+      }}
+      transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+      className="absolute bottom-[20%] right-[5%] w-[500px] h-[500px] rounded-full bg-gradient-to-bl from-[#1E3A47] to-transparent blur-[130px]"
+    />
+  </div>
+);
+
+
+
+
+const JourneyStep = ({ id, title, desc, icon: Icon, isLast }: { id: string; title: string; desc: string; icon: any; isLast: boolean }) => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, amount: 0.2 });
+
+  return (
+    <div ref={ref} className="relative flex-1 flex flex-col items-center">
+      {/* Connecting Line (Desktop) */}
+      {!isLast && (
+        <div className="hidden lg:block absolute top-[40px] left-[calc(50%+40px)] right-[calc(-50%+40px)] h-[2px] bg-slate-100/50 z-0">
+          <motion.div
+            initial={{ width: 0 }}
+            whileInView={{ width: "100%" }}
+            viewport={{ once: true }}
+            transition={{ duration: 1.5, delay: 0.5, ease: "easeInOut" }}
+            className="h-full bg-gradient-to-r from-[#B24531]/40 to-[#B24531]/10 relative"
+          >
+            <motion.div
+              animate={{ left: ["0%", "100%"], opacity: [0, 1, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#B24531] blur-[2px] shadow-[0_0_8px_rgba(178,69,49,0.8)]"
+            />
+          </motion.div>
+        </div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={isInView ? { opacity: 1, y: 0 } : {}}
+        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: parseInt(id) * 0.2 }}
+        className="relative z-10 w-full flex flex-col items-center h-full"
+      >
+        {/* Step Badge with Glow */}
+        <div className="relative mb-8 shrink-0">
+          <motion.div
+            animate={{
+              boxShadow: ["0 0 0 0px rgba(178, 69, 49, 0)", "0 0 0 12px rgba(178, 69, 49, 0.03)", "0 0 0 0px rgba(178, 69, 49, 0)"]
+            }}
+            whileHover={{
+              boxShadow: "0 0 0 15px rgba(178, 69, 49, 0.1)",
+              scale: 1.05
+            }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="w-20 h-20 rounded-full bg-white border-2 border-slate-100 flex items-center justify-center shadow-lg relative z-10 transition-all duration-300"
+          >
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-[#1E3A47] to-[#B24531]">
+              {id}
+            </span>
+          </motion.div>
+          <motion.div
+            whileHover={{ rotate: 5, scale: 1.1 }}
+            className="absolute -top-4 -right-4 w-12 h-12 rounded-2xl bg-[#B24531]/5 flex items-center justify-center text-[#B24531] shadow-sm z-20 transition-transform duration-300"
+          >
+            <Icon size={20} className="group-hover:animate-pulse" />
+          </motion.div>
+        </div>
+
+        {/* Card */}
+        <motion.div
+          whileHover={{ y: -8 }}
+          className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm hover:shadow-xl hover:border-[#B24531]/10 transition-all duration-500 text-center w-full max-w-sm group flex-1 flex flex-col cursor-default"
+        >
+          <div className="pt-2">
+            <h4 className="text-2xl font-bold text-[#1E3A47] mb-6 group-hover:text-[#B24531] transition-colors">{title}</h4>
+          </div>
+          <div className="flex-1 flex flex-col">
+            <p className="text-[#1E3A47]/60 font-medium leading-relaxed text-base">
+              {desc}
+            </p>
+            <div className="flex-1 min-h-[2rem]" /> {/* Flexible empty space */}
+          </div>
+        </motion.div>
+      </motion.div>
+    </div>
   );
 };
 
@@ -274,7 +446,7 @@ const BecomeTutor: React.FC = () => {
     {
       id: "02",
       title: "Design Syllabus",
-      desc: "Collaborate with our curriculum experts.",
+      desc: "Collaborate with our curriculum experts and AI-powered guidance.",
       icon: <PenTool size={64} className="text-[#E5583E]" />,
       opacity: step2Opacity
     },
@@ -420,27 +592,54 @@ const BecomeTutor: React.FC = () => {
         whileInView="visible"
         viewport={{ once: true, amount: 0.1 }}
         variants={revealVariants}
-        className="relative pt-32 pb-24 px-6 md:px-12 overflow-hidden"
+        className="relative flex items-center justify-center pt-20 pb-4 px-6 md:px-12 overflow-hidden"
       >
-        {/* Ambient Hero Background */}
+        {/* Ambient Hero Background with subtle animation */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1400px] h-full pointer-events-none">
-          <div className="absolute top-[-10%] left-[20%] w-[60%] h-[80%] rounded-full bg-orange-100/30 blur-[120px]" />
-          <div className="absolute bottom-0 right-[10%] w-[40%] h-[60%] rounded-full bg-amber-50/20 blur-[100px]" />
+          <motion.div
+            animate={{
+              scale: [1, 1.1, 1],
+              opacity: [0.3, 0.4, 0.3],
+            }}
+            transition={{
+              duration: 8,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="absolute top-[-5%] left-[20%] w-[60%] h-[70%] rounded-full bg-slate-100/30 blur-[120px]"
+          />
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.2, 0.3, 0.2],
+            }}
+            transition={{
+              duration: 10,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: 1
+            }}
+            className="absolute bottom-5 right-[10%] w-[40%] h-[50%] rounded-full bg-slate-50/20 blur-[100px]"
+          />
         </div>
 
         <div className="max-w-[1400px] mx-auto text-center relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-8 text-[10px] font-black uppercase tracking-[0.2em] bg-[#B24531]/10 text-[#B24531]"
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] bg-white text-slate-500 border border-slate-200 shadow-sm"
           >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             New Cohort 2026
           </motion.div>
 
           <motion.h1
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-5xl md:text-7xl lg:text-8xl font-black text-[#1E3A47] tracking-tighter mb-10 leading-[0.9] md:leading-[1.1] min-h-[1.2em]"
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+            className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#1E3A47] tracking-tight mb-4 leading-[1.2] max-w-4xl mx-auto drop-shadow-sm py-2"
+            style={{ letterSpacing: "-0.02em" }}
           >
             {typedText}
           </motion.h1>
@@ -449,34 +648,42 @@ const BecomeTutor: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="space-y-12"
+            className="space-y-8"
           >
-            <p className="text-xl md:text-2xl text-[#1E3A47]/60 font-medium max-w-2xl mx-auto leading-relaxed">
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.8, ease: "easeOut" }}
+              className="text-base md:text-lg text-slate-500/80 font-normal max-w-2xl mx-auto leading-relaxed"
+            >
               Built with AI-powered tools, transparent earnings, and full creator control.
-            </p>
+            </motion.p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
+              className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            >
               <motion.button
                 whileHover={{ y: -4, scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => document.getElementById('apply-form')?.scrollIntoView({ behavior: 'smooth' })}
-                className="group relative w-full sm:w-auto px-10 py-5 bg-[#B24531] text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-2xl shadow-[#B24531]/20 overflow-hidden"
+                className="group relative w-full sm:w-auto px-8 py-4 bg-[#B24531] text-white font-semibold text-sm rounded-xl shadow-xl shadow-[#B24531]/20 overflow-hidden transition-all duration-300"
               >
                 <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 group-hover:translate-x-full transition-transform duration-1000 -translate-x-full" />
                 <span className="relative">Apply as Tutor</span>
-                {/* Subtle Pulse */}
-                <span className="absolute inset-0 rounded-2xl bg-[#B24531] animate-ping opacity-20 scale-110 pointer-events-none" />
               </motion.button>
 
               <motion.button
-                whileHover={{ y: -4, backgroundColor: 'rgba(30, 58, 71, 0.05)' }}
+                whileHover={{ y: -4, backgroundColor: 'rgba(30, 58, 71, 0.05)', scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={openLoginModal}
-                className="w-full sm:w-auto px-10 py-5 border-2 border-[#1E3A47]/10 text-[#1E3A47] font-black text-sm uppercase tracking-widest rounded-2xl transition-all"
+                className="w-full sm:w-auto px-8 py-4 border border-slate-200 bg-white/50 backdrop-blur-sm text-[#1E3A47] font-semibold text-sm rounded-xl transition-all duration-300 shadow-sm"
               >
                 Tutor Login
               </motion.button>
-            </div>
+            </motion.div>
 
             <motion.p
               initial={{ opacity: 0 }}
@@ -492,98 +699,109 @@ const BecomeTutor: React.FC = () => {
         </div>
       </motion.section>
 
-      {/* Why Teach Section */}
+      {/* Why Teach Section - Live Capability Feed Marquee */}
       <motion.section
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.1 }}
         variants={revealVariants}
-        className="py-16 px-6 md:px-12 bg-[#F7F3E3]"
+        className="pt-12 pb-4 bg-[#FDFCF0] relative overflow-hidden"
       >
-        <div className="max-w-[1400px] mx-auto">
-          <SectionHeader
-            title="Why teach with us?"
-            subline="We provide the tools and transparency for you to scale your impact."
-          />
+        {/* Background Atmosphere */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage: 'linear-gradient(#1E3A47 1px, transparent 1px), linear-gradient(90deg, #1E3A47 1px, transparent 1px)',
+              backgroundSize: '100px 100px',
+              maskImage: 'radial-gradient(circle at center, black, transparent 80%)'
+            }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-orange-100/20 blur-[130px] rounded-full" />
+        </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {[
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 relative z-10 mb-0">
+          <SectionHeader
+            badge="ECOSYSTEM READY"
+            title="Why teach with us?"
+            subline="Experience a living platform that works as hard as you do."
+          />
+        </div>
+
+        {/* The Live Capability Rails */}
+        <div className="relative space-y-4 pb-8 pt-2">
+          {/* Rail 1: Forward */}
+          <CapabilityMarquee
+            items={[
               {
-                icon: <Layout className="w-6 h-6" />,
                 title: "Create or Delegate",
+                badge: "Builder",
+                mockup: <MiniCourseBuilder />,
                 desc: "Design and own your content end-to-end. If you request our team to create content for you, this service is chargeable."
               },
               {
-                icon: <TrendingUp className="w-6 h-6" />,
                 title: "Earn Transparently",
+                badge: "Payouts",
+                mockup: <MiniEarnings />,
                 desc: "Earn through a revenue split based on course performance. 80/20 split with your APIs, 70/30 with platform APIs."
               },
               {
-                icon: <Brain className="w-6 h-6" />,
                 title: "Grow With AI",
+                badge: "Intelligence",
+                mockup: <MiniAI />,
                 desc: "AI-assisted follow-up messaging that helps tutors communicate clearly and professionally with students."
               },
               {
-                icon: <BarChart3 className="w-6 h-6" />,
                 title: "Track Everything",
+                badge: "Metrics",
+                mockup: <MiniAnalytics />,
                 desc: "Monitor enrollments, engagement, payouts, and learner follow-ups in real time."
               }
-            ].map((item, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                className="p-8 rounded-[2rem] bg-white border border-[#1E3A47]/5 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-500"
-              >
-                <div className="w-12 h-12 rounded-2xl bg-[#B24531]/5 flex items-center justify-center text-[#B24531] mb-6">
-                  {item.icon}
-                </div>
-                <h4 className="text-xl font-black text-[#1E3A47] mb-4">{item.title}</h4>
-                <p className="text-[#1E3A47]/60 font-medium leading-relaxed text-sm">
-                  {item.desc}
-                </p>
-              </motion.div>
-            ))}
-          </div>
+            ]}
+          />
+
+          {/* Horizontal Gradient Overlays */}
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-gradient-to-r from-[#FDFCF0] to-transparent z-20 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-64 bg-gradient-to-l from-[#FDFCF0] to-transparent z-20 pointer-events-none" />
         </div>
+
       </motion.section>
 
-      {/* Step Flow Section - Scroll-Linked Highlighting */}
       <motion.section
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.1 }}
         variants={revealVariants}
-        className="py-20 px-6 md:px-12 bg-white relative"
+        className="pt-4 pb-32 px-6 md:px-12 bg-[#FAF9F6] relative overflow-hidden"
       >
-        <div className="max-w-[1200px] mx-auto relative z-10">
+        <FloatingShapes />
+
+        <div className="max-w-[1400px] mx-auto relative z-10">
           <SectionHeader
-            badge="The Process"
+            badge="THE PROCESS"
             title="How it works"
           />
 
-          <div className="space-y-0">
-            {[
-              {
-                id: "01",
-                title: "Submit Idea",
-                desc: "Validate demand using platform insights."
-              },
-              {
-                id: "02",
-                title: "Design Syllabus",
-                desc: "Collaborate with curriculum experts and AI assistance."
-              },
-              {
-                id: "03",
-                title: "Launch & Earn",
-                desc: "Track engagement, performance, payouts, and learner follow-ups in real time."
-              }
-            ].map((step) => (
-              <StepItem key={step.id} {...step} />
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch mt-16 relative">
+            <JourneyStep
+              id="01"
+              title="Submit Idea"
+              desc="Validate real learner demand using platform insights and data signals."
+              icon={Lightbulb}
+              isLast={false}
+            />
+            <JourneyStep
+              id="02"
+              title="Design Syllabus"
+              desc="Co-create your syllabus with curriculum experts and AI-powered guidance."
+              icon={PenTool}
+              isLast={false}
+            />
+            <JourneyStep
+              id="03"
+              title="Launch & Earn"
+              desc="Launch your course, track performance, and grow earnings with real-time insights."
+              icon={Rocket}
+              isLast={true}
+            />
           </div>
         </div>
       </motion.section>
@@ -594,41 +812,43 @@ const BecomeTutor: React.FC = () => {
         whileInView="visible"
         viewport={{ once: true, amount: 0.1 }}
         variants={revealVariants}
-        className="py-20 px-6 md:px-12 bg-[#B24531] text-white overflow-hidden relative"
+        className="py-12 px-6 md:px-12 bg-white relative overflow-hidden"
       >
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-          <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-        </div>
+        <div className="max-w-6xl mx-auto bg-[#B24531] rounded-[2rem] py-16 px-8 relative overflow-hidden shadow-2xl">
+          <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
+          </div>
 
-        <div className="max-w-[1400px] mx-auto text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="inline-flex items-center gap-2 mb-12"
-          >
-            <Sparkles className="w-6 h-6 text-amber-300 animate-pulse" />
-            <span className="text-xs font-black uppercase tracking-[0.4em] text-white/60">Intelligence Spotlight</span>
-          </motion.div>
+          <div className="max-w-4xl mx-auto text-center relative z-10 text-white">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              className="inline-flex items-center gap-2 mb-6"
+            >
+              <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60">Intelligence Spotlight</span>
+            </motion.div>
 
-          <motion.h3
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl md:text-6xl font-black max-w-5xl mx-auto leading-[1.15] tracking-tight"
-          >
-            “Know who needs attention, when to intervene, and how to follow up — automatically.”
-          </motion.h3>
+            <motion.h3
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-2xl md:text-3xl lg:text-4xl font-black leading-tight tracking-tight"
+            >
+              “Know who needs attention, when to intervene, and how to follow up — automatically.”
+            </motion.h3>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.3 }}
-            className="mt-12 text-sm font-bold tracking-[0.3em] uppercase text-white/40"
-          >
-            AI-Driven Tutor Dashboard
-          </motion.p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.3 }}
+              className="mt-8 text-[10px] font-bold tracking-[0.3em] uppercase text-white/40"
+            >
+              AI-Driven Tutor Dashboard
+            </motion.p>
+          </div>
         </div>
       </motion.section>
 
@@ -639,29 +859,28 @@ const BecomeTutor: React.FC = () => {
         whileInView="visible"
         viewport={{ once: true, amount: 0.05 }}
         variants={revealVariants}
-        className="py-24 px-6 md:px-12 bg-[#B24531] relative scroll-mt-20"
+        className="py-24 px-6 md:px-12 bg-[#A64632] relative scroll-mt-20"
       >
-        <div className="absolute top-0 left-0 w-full h-1/2 bg-white pointer-events-none" />
-
         <div className="max-w-[1400px] mx-auto relative z-10">
           <SectionHeader
             badge="Join the Team"
             title="Ready to make an impact?"
             subline="Fill out the form below to apply. We review every application personally."
+            light
           />
 
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="bg-white rounded-[3rem] p-8 md:p-16 shadow-2xl shadow-black/10 border border-[#1E3A47]/5"
+            className="bg-[#FDFCF0] rounded-[3rem] p-8 md:p-16 shadow-2xl shadow-black/20 border border-white/10"
           >
             <form onSubmit={handleSubmit} className="space-y-16">
               {/* Personal Details */}
               <div className="space-y-8">
                 <div className="flex items-center gap-4 border-b border-[#1E3A47]/10 pb-4">
                   <ShieldCheck className="w-5 h-5 text-[#B24531]" />
-                  <h4 className="text-xs font-black uppercase tracking-widest text-[#B24531]">Personal Details</h4>
+                  <h4 className="text-[15px] font-black uppercase tracking-widest text-[#B24531]">Personal Details</h4>
                 </div>
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -672,13 +891,13 @@ const BecomeTutor: React.FC = () => {
                     { label: 'Professional Headline', name: 'headline', type: 'text', placeholder: 'Sr. AI Engineer' }
                   ].map((field) => (
                     <div key={field.name} className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">{field.label}</label>
+                      <label className="text-[13px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">{field.label}</label>
                       <input
                         type={field.type}
                         name={field.name}
                         value={(formData as any)[field.name]}
                         onChange={handleChange}
-                        className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                        className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                         placeholder={field.placeholder}
                       />
                     </div>
@@ -690,51 +909,51 @@ const BecomeTutor: React.FC = () => {
               <div className="space-y-8">
                 <div className="flex items-center gap-4 border-b border-[#1E3A47]/10 pb-4">
                   <Brain className="w-5 h-5 text-[#B24531]" />
-                  <h4 className="text-xs font-black uppercase tracking-widest text-[#B24531]">Expertise & Proposal</h4>
+                  <h4 className="text-[15px] font-black uppercase tracking-widest text-[#B24531]">Expertise & Proposal</h4>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Area of Expertise</label>
+                    <label className="text-[13px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Area of Expertise</label>
                     <input
                       type="text"
                       name="expertiseArea"
                       value={formData.expertiseArea}
                       onChange={handleChange}
-                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. LLMs, Python, Computer Vision"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Years of Experience</label>
+                    <label className="text-[13px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Years of Experience</label>
                     <input
                       type="number"
                       name="yearsExperience"
                       value={formData.yearsExperience}
                       onChange={handleChange}
-                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. 5"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Proposed Course Title</label>
+                    <label className="text-[13px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Proposed Course Title</label>
                     <input
                       type="text"
                       name="courseTitle"
                       value={formData.courseTitle}
                       onChange={handleChange}
-                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. Advanced RAG Systems"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Availability</label>
+                    <label className="text-[13px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1">Availability</label>
                     <div className="relative">
                       <select
                         name="availability"
                         value={formData.availability}
                         onChange={handleChange}
-                        className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold appearance-none focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all cursor-pointer"
+                        className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all cursor-pointer"
                       >
                         <option value="">Select availability</option>
                         <option value="immediate">Immediately</option>
@@ -751,14 +970,14 @@ const BecomeTutor: React.FC = () => {
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <div className="flex justify-between items-center px-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40">Course Description</label>
+                      <label className="text-[13px] font-black uppercase tracking-wider text-[#1E3A47]/40">Course Description</label>
                       <button
                         type="button"
                         onClick={handleAiGenerate}
                         disabled={isGenerating}
-                        className="flex items-center gap-2 text-[10px] font-black text-[#B24531] hover:text-[#E64833] disabled:opacity-50 transition-colors uppercase tracking-widest bg-[#B24531]/5 px-3 py-1 rounded-full"
+                        className="flex items-center gap-2 text-xs font-black text-[#B24531] hover:text-[#E64833] disabled:opacity-50 transition-colors uppercase tracking-widest bg-[#B24531]/5 px-3 py-1 rounded-full"
                       >
-                        {isGenerating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                        {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                         {isGenerating ? 'Thinking...' : 'AI Assist'}
                       </button>
                     </div>
@@ -767,18 +986,18 @@ const BecomeTutor: React.FC = () => {
                       rows={4}
                       value={formData.courseDescription}
                       onChange={handleChange}
-                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
+                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
                       placeholder="Briefly describe the curriculum..."
                     />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1 pt-1 block">Target Audience</label>
+                    <label className="text-[13px] font-black uppercase tracking-wider text-[#1E3A47]/40 px-1 pt-1 block">Target Audience</label>
                     <textarea
                       name="targetAudience"
                       rows={4}
                       value={formData.targetAudience}
                       onChange={handleChange}
-                      className="w-full bg-[#FDFCF0] border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
+                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
                       placeholder="Who is this for?"
                     />
                   </div>
