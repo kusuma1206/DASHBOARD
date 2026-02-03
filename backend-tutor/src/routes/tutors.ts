@@ -10,6 +10,7 @@ import { buildTutorCourseSnapshot, formatTutorSnapshot } from "../services/tutor
 import { generateTutorCopilotAnswer, improveEmailMessage } from "../rag/openAiClient";
 import { sendEmail } from "../services/emailService";
 import { rateLimit } from "express-rate-limit";
+import { getChatbotSessionStats, getQuestionTypeAnalysis, getPerLearnerStats, getLearnerCustomQuestions, getModuleActivityOverview } from "../services/chatbot-stats.service";
 
 const tutorsRouter = express.Router();
 
@@ -537,6 +538,236 @@ tutorsRouter.post(
         message: "Failed to send email. Please check your email credentials or try again later.",
         details: errorMessage
       });
+    }
+  }),
+);
+
+// GET /tutors/:courseId/chatbot-stats
+// Returns chatbot session statistics per topic/module
+// Supports cohort filtering via ?cohortId=xxx
+// Supports individual learner via ?learnerId=xxx
+tutorsRouter.get(
+  "/:courseId/chatbot-stats",
+  requireAuth,
+  requireTutor,
+  asyncHandler(async (req, res) => {
+    console.log('[Chatbot Stats] Request received:', {
+      courseId: req.params.courseId,
+      hasAuth: Boolean((req as AuthenticatedRequest).auth),
+      cookies: Object.keys(req.cookies || {}),
+      query: req.query
+    });
+
+    const auth = (req as AuthenticatedRequest).auth;
+    const { courseId } = req.params;
+
+    if (!auth) {
+      console.log('[Chatbot Stats] No auth found - returning 401');
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    console.log('[Chatbot Stats] Auth found:', { userId: auth.userId, role: auth.role });
+
+    const allowed = await isTutorForCourse(auth.userId, courseId);
+    if (!allowed) {
+      console.log('[Chatbot Stats] Tutor not assigned to course - returning 403');
+      res.status(403).json({ message: "Tutor is not assigned to this course" });
+      return;
+    }
+
+    console.log('[Chatbot Stats] Authorization passed, fetching stats');
+
+    const cohortId = typeof req.query.cohortId === "string" ? req.query.cohortId : undefined;
+    const learnerId = typeof req.query.learnerId === "string" ? req.query.learnerId : undefined;
+
+    try {
+      const stats = await getChatbotSessionStats(courseId, cohortId, learnerId);
+      console.log('[Chatbot Stats] Stats fetched successfully:', { count: stats.length });
+      res.status(200).json({ stats });
+    } catch (error) {
+      console.error("Failed to fetch chatbot stats:", error);
+      res.status(500).json({ message: "Failed to fetch chatbot statistics" });
+    }
+  }),
+);
+
+// GET /tutors/:courseId/question-analysis
+// Returns question type analysis (predefined vs custom)
+// Supports cohort filtering via ?cohortId=xxx
+// Supports individual learner via ?learnerId=xxx
+// Supports topic filtering via ?topicId=xxx
+tutorsRouter.get(
+  "/:courseId/question-analysis",
+  requireAuth,
+  requireTutor,
+  asyncHandler(async (req, res) => {
+    const auth = (req as AuthenticatedRequest).auth;
+    const { courseId } = req.params;
+
+    if (!auth) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const allowed = await isTutorForCourse(auth.userId, courseId);
+    if (!allowed) {
+      res.status(403).json({ message: "Tutor is not assigned to this course" });
+      return;
+    }
+
+    const cohortId = typeof req.query.cohortId === "string" ? req.query.cohortId : undefined;
+    const learnerId = typeof req.query.learnerId === "string" ? req.query.learnerId : undefined;
+    const topicId = typeof req.query.topicId === "string" ? req.query.topicId : undefined;
+
+    try {
+      const analysis = await getQuestionTypeAnalysis(courseId, cohortId, learnerId, topicId);
+      res.status(200).json({ analysis });
+    } catch (error) {
+      console.error("Failed to fetch question analysis:", error);
+      res.status(500).json({ message: "Failed to fetch question analysis" });
+    }
+  }),
+);
+
+// GET /tutors/:courseId/chatbot-stats/learners
+// Returns per-learner chatbot statistics
+// Supports cohort filtering via ?cohortId=xxx
+tutorsRouter.get(
+  "/:courseId/chatbot-stats/learners",
+  requireAuth,
+  requireTutor,
+  asyncHandler(async (req, res) => {
+    console.log('[Per-Learner Stats] Request received:', {
+      courseId: req.params.courseId,
+      hasAuth: Boolean((req as AuthenticatedRequest).auth),
+      query: req.query
+    });
+
+    const auth = (req as AuthenticatedRequest).auth;
+    const { courseId } = req.params;
+
+    if (!auth) {
+      console.log('[Per-Learner Stats] No auth found - returning 401');
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    console.log('[Per-Learner Stats] Auth found:', { userId: auth.userId, role: auth.role });
+
+    const allowed = await isTutorForCourse(auth.userId, courseId);
+    if (!allowed) {
+      console.log('[Per-Learner Stats] Tutor not assigned to course - returning 403');
+      res.status(403).json({ message: "Tutor is not assigned to this course" });
+      return;
+    }
+
+    console.log('[Per-Learner Stats] Authorization passed, fetching stats');
+
+    const cohortId = typeof req.query.cohortId === "string" ? req.query.cohortId : undefined;
+
+    try {
+      const learners = await getPerLearnerStats(courseId, cohortId);
+      console.log('[Per-Learner Stats] Stats fetched successfully:', { count: learners.length });
+      res.status(200).json({ learners });
+    } catch (error) {
+      console.error("Failed to fetch per-learner stats:", error);
+      res.status(500).json({ message: "Failed to fetch per-learner statistics" });
+    }
+  }),
+);
+
+// GET /tutors/:courseId/chatbot-stats/learners/:learnerId/custom-questions
+// Returns custom questions asked by a specific learner
+// Supports cohort filtering via ?cohortId=xxx
+tutorsRouter.get(
+  "/:courseId/chatbot-stats/learners/:learnerId/custom-questions",
+  requireAuth,
+  requireTutor,
+  asyncHandler(async (req, res) => {
+    console.log('[Custom Questions] Request received:', {
+      courseId: req.params.courseId,
+      learnerId: req.params.learnerId,
+      hasAuth: Boolean((req as AuthenticatedRequest).auth),
+      query: req.query
+    });
+
+    const auth = (req as AuthenticatedRequest).auth;
+    const { courseId, learnerId } = req.params;
+
+    if (!auth) {
+      console.log('[Custom Questions] No auth found - returning 401');
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    console.log('[Custom Questions] Auth found:', { userId: auth.userId, role: auth.role });
+
+    const allowed = await isTutorForCourse(auth.userId, courseId);
+    if (!allowed) {
+      console.log('[Custom Questions] Tutor not assigned to course - returning 403');
+      res.status(403).json({ message: "Tutor is not assigned to this course" });
+      return;
+    }
+
+    console.log('[Custom Questions] Authorization passed, fetching questions');
+
+    const cohortId = typeof req.query.cohortId === "string" ? req.query.cohortId : undefined;
+
+    try {
+      const questions = await getLearnerCustomQuestions(courseId, learnerId, cohortId);
+      console.log('[Custom Questions] Questions fetched successfully:', { count: questions.length });
+      res.status(200).json({ questions });
+    } catch (error) {
+      console.error("Failed to fetch custom questions:", error);
+      res.status(500).json({ message: "Failed to fetch custom questions" });
+    }
+  }),
+);
+
+// GET /tutors/:courseId/chatbot-stats/modules
+// Returns module activity overview
+// Supports cohort filtering via ?cohortId=xxx
+tutorsRouter.get(
+  "/:courseId/chatbot-stats/modules",
+  requireAuth,
+  requireTutor,
+  asyncHandler(async (req, res) => {
+    console.log('[Module Overview] Request received:', {
+      courseId: req.params.courseId,
+      hasAuth: Boolean((req as AuthenticatedRequest).auth),
+      query: req.query
+    });
+
+    const auth = (req as AuthenticatedRequest).auth;
+    const { courseId } = req.params;
+
+    if (!auth) {
+      console.log('[Module Overview] No auth found - returning 401');
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    console.log('[Module Overview] Auth found:', { userId: auth.userId, role: auth.role });
+
+    const allowed = await isTutorForCourse(auth.userId, courseId);
+    if (!allowed) {
+      console.log('[Module Overview] Tutor not assigned to course - returning 403');
+      res.status(403).json({ message: "Tutor is not assigned to this course" });
+      return;
+    }
+
+    console.log('[Module Overview] Authorization passed, fetching overview');
+
+    const cohortId = typeof req.query.cohortId === "string" ? req.query.cohortId : undefined;
+
+    try {
+      const modules = await getModuleActivityOverview(courseId, cohortId);
+      console.log('[Module Overview] Overview fetched successfully:', { count: modules.length });
+      res.status(200).json({ modules });
+    } catch (error) {
+      console.error("Failed to fetch module overview:", error);
+      res.status(500).json({ message: "Failed to fetch module overview" });
     }
   }),
 );

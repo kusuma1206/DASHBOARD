@@ -17,6 +17,7 @@ function Router() {
       <Route path="/become-a-tutor" component={BecomeTutorPage} />
       <Route path="/tutors/login" component={TutorLoginPage} />
       <Route path="/tutors" component={TutorDashboardPage} />
+      <Route path="/tutor" component={TutorDashboardPage} />
 
       {/* Default route - Tutor Landing Page */}
       <Route path="/" component={BecomeTutorPage} />

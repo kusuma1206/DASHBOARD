@@ -33,6 +33,9 @@ import { useEmailSelection } from '@/hooks/useEmailSelection';
 import { Checkbox } from '@/components/ui/checkbox';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ChatbotStatsCard } from '@/components/tutor/ChatbotStatsCard';
+import { ChatbotOverviewCard } from '@/components/tutor/ChatbotOverviewCard';
+import { PerLearnerStatsCard } from '@/components/tutor/PerLearnerStatsCard';
 
 
 type TutorCourse = {
@@ -973,8 +976,8 @@ export default function TutorDashboardPage() {
                               </TableCell>
                               <TableCell className="py-3 px-4">
                                 <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight border ${enrollment.status.toLowerCase() === 'active'
-                                    ? 'bg-[#F0FFF4] text-[#38A169] border-[#C6F6D5]'
-                                    : 'bg-[#EDF2F7] text-[#475569] border-[#E2E8F0]'
+                                  ? 'bg-[#F0FFF4] text-[#38A169] border-[#C6F6D5]'
+                                  : 'bg-[#EDF2F7] text-[#475569] border-[#E2E8F0]'
                                   }`}>
                                   {enrollment.status}
                                 </span>
@@ -1292,6 +1295,29 @@ export default function TutorDashboardPage() {
             </div>
           </section>
 
+          {/* Chatbot Interaction Stats Section */}
+          <section id="chatbot-stats" className="mt-8 space-y-4">
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#718096]">Chatbot Analytics</p>
+              <h2 className="text-xl font-semibold text-[#1A202C]">Learner Chatbot Interactions</h2>
+              <p className="text-xs text-[#718096]">
+                Track how learners use the AI chatbot and analyze their question patterns.
+              </p>
+            </div>
+            {/* Cohort Overview */}
+            <ChatbotOverviewCard
+              courseId={selectedCourseId || ''}
+              cohortId={selectedCohortId}
+              headers={headers}
+            />
+
+            {/* Per-Learner Breakdown */}
+            <PerLearnerStatsCard
+              courseId={selectedCourseId || ''}
+              cohortId={selectedCohortId}
+              headers={headers}
+            />
+          </section>
         </div>
 
         {/* Persistent AI Copilot Button - Anchored horizontally to white surface, fixed to viewport bottom */}
