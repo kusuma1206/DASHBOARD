@@ -12,12 +12,12 @@
   --elevate-1: rgba(0, 0, 0, .03);
   --elevate-2: rgba(0, 0, 0, .06);
 
-  --background: 210 20% 98%;
+  --background: 154 21% 96%;
   --foreground: 222 30% 20%;
   --border: 214 20% 85%;
   --card: 0 0% 100%;
   --card-foreground: 222 30% 20%;
-  --card-border: 214 20% 88%;
+  --card-border: 154 10% 85%;
   --sidebar: 210 25% 97%;
   --sidebar-foreground: 222 30% 20%;
   --sidebar-border: 214 20% 88%;
@@ -530,6 +530,7 @@
   }
 
   @keyframes pulse-glow {
+
     0%,
     100% {
       box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
@@ -881,19 +882,198 @@
 .assistant-markdown p:first-child {
   margin-top: 0;
 }
+
 .assistant-markdown p:last-child {
   margin-bottom: 0;
 }
+
 .assistant-markdown p {
   margin-bottom: 0.5rem;
 }
-.assistant-markdown ul, .assistant-markdown ol {
+
+.assistant-markdown ul,
+.assistant-markdown ol {
   margin-bottom: 0.5rem;
   padding-left: 1.25rem;
 }
+
 .assistant-markdown li {
   margin-bottom: 0.25rem;
 }
+
 .assistant-markdown strong {
   font-weight: 700;
+}
+
+/* ===== TUTOR DASHBOARD REDESIGN STYLES ===== */
+
+/* Semantic Color Variables */
+:root {
+  --stat-blue: #3B82F6;
+  --stat-blue-light: #EFF6FF;
+  --stat-green: #10B981;
+  --stat-green-light: #ECFDF5;
+  --stat-red: #EF4444;
+  --stat-red-light: #FEE2E2;
+  --ottolearn-green: #00D98C;
+  --gradient-blue-start: #3B82F6;
+  --gradient-blue-end: #2563EB;
+}
+
+/* Count-up Animation for Stats Numbers */
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stat-number {
+  animation: countUp 0.6s ease-out;
+}
+
+/* Pulse Animation for Alert Bell */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.1);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.pulse-alert {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+/* Card Lift Animation */
+.card-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Icon Bounce on Hover */
+@keyframes icon-bounce {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.icon-bounce:hover {
+  animation: icon-bounce 0.5s ease;
+}
+
+/* Smooth Tab Transition */
+.tab-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Gradient Background for Welcome Section */
+.gradient-welcome {
+  background: linear-gradient(to bottom, #ffffff 0%, #F9FAFB 100%);
+}
+
+/* Stat Card Themes */
+.stat-card-blue {
+  border-left: 4px solid var(--stat-blue);
+  background: linear-gradient(to right, var(--stat-blue-light) 0%, #ffffff 100%);
+}
+
+.stat-card-green {
+  border-left: 4px solid var(--stat-green);
+  background: linear-gradient(to right, var(--stat-green-light) 0%, #ffffff 100%);
+}
+
+.stat-card-red {
+  border-left: 4px solid var(--stat-red);
+  background: linear-gradient(to right, var(--stat-red-light) 0%, #ffffff 100%);
+}
+
+/* Sticky Header Shadow */
+.header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+/* Search Box Styles */
+.search-box {
+  background: #F3F4F6;
+  border-radius: 9999px;
+  transition: all 0.2s ease;
+}
+
+.search-box:focus-within {
+  background: #E5E7EB;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* User Avatar Gradient */
+.avatar-gradient {
+  background: linear-gradient(135deg, #3B82F6 0%, #10B981 100%);
+}
+
+/* Pill Tab Styles */
+.tab-pill-active {
+  background: linear-gradient(135deg, var(--gradient-blue-start) 0%, var(--gradient-blue-end) 100%);
+  color: white;
+  font-weight: 600;
+}
+
+.tab-pill-inactive {
+  background: transparent;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+.tab-pill-inactive:hover {
+  background: #F3F4F6;
+}
+
+/* Scrollbar Thin Styles */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #E2E8F0 transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #E2E8F0;
+  border-radius: 3px;
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: #CBD5E0;
 }

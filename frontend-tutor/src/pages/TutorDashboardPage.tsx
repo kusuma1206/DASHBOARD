@@ -16,7 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Mail, Sparkles, Loader2, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
+import { Mail, Sparkles, Loader2, MessageSquare, ChevronDown, ChevronUp, Users, TrendingUp, Bell, Home, BookOpen, Activity, Zap, Filter, ListFilter, X, Check } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -31,11 +31,28 @@ import {
 } from "@/components/ui/tooltip";
 import { useEmailSelection } from '@/hooks/useEmailSelection';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChatbotStatsCard } from '@/components/tutor/ChatbotStatsCard';
 import { ChatbotOverviewCard } from '@/components/tutor/ChatbotOverviewCard';
 import { PerLearnerStatsCard } from '@/components/tutor/PerLearnerStatsCard';
+
 
 
 type TutorCourse = {
@@ -67,6 +84,17 @@ type ProgressRow = {
   totalModules: number;
   percent: number;
 };
+
+enum LearnerStatus {
+  NEEDS_SUPPORT = 'NEEDS_SUPPORT',
+  MAKING_PROGRESS = 'MAKING_PROGRESS',
+  ON_TRACK = 'ON_TRACK',
+  COMPLETED = 'COMPLETED'
+}
+
+interface Learner extends ProgressRow {
+  status: LearnerStatus;
+}
 
 type TutorAssistantMessage = {
   id: string;
@@ -157,6 +185,19 @@ export default function TutorDashboardPage() {
   const [isAssistantSheetOpen, setIsAssistantSheetOpen] = useState(false);
   const assistantChatRef = useRef<HTMLDivElement>(null);
   const lastMessageRef = useRef<HTMLDivElement>(null);
+
+  // --- Learner Progress Sort & Filter State ---
+  const [progressSort, setProgressSort] = useState<string>('progress-desc');
+  const [progressFilters, setProgressFilters] = useState({
+    statuses: [] as LearnerStatus[],
+    range: 'all' as string,
+    incompleteOnly: false
+  });
+
+  // --- Engagement & Alerts State ---
+  const [activeAlertFilter, setActiveAlertFilter] = useState<'all' | 'engaged' | 'attention_drift' | 'content_friction' | 'unknown'>('all');
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const QUICK_PROMPTS = [
     "Which learners are inactive this week?",
@@ -288,6 +329,56 @@ export default function TutorDashboardPage() {
     }
   });
 
+  const getLearnerStatusEnum = (percent: number): LearnerStatus => {
+    if (percent === 100) return LearnerStatus.COMPLETED;
+    if (percent > 75) return LearnerStatus.ON_TRACK;
+    if (percent > 25) return LearnerStatus.MAKING_PROGRESS;
+    return LearnerStatus.NEEDS_SUPPORT;
+  };
+
+  const allLearners = useMemo<Learner[]>(() => {
+    if (!progressResponse?.learners) return [];
+    return progressResponse.learners.map(l => ({
+      ...l,
+      status: getLearnerStatusEnum(l.percent)
+    }));
+  }, [progressResponse?.learners]);
+
+  const filteredAndSortedLearners = useMemo(() => {
+    // 1. Filter First
+    let list = allLearners.filter(l => {
+      // Status Filter
+      if (progressFilters.statuses.length > 0 && !progressFilters.statuses.includes(l.status)) {
+        return false;
+      }
+
+      // Range Filter
+      if (progressFilters.range !== 'all') {
+        const [min, max] = progressFilters.range.split('-').map(Number);
+        if (l.percent < min || l.percent > max) return false;
+      }
+
+      // Incomplete Filter
+      if (progressFilters.incompleteOnly && l.completedModules === l.totalModules) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // 2. Then Sort (on a copy/filtered list)
+    return [...list].sort((a, b) => {
+      switch (progressSort) {
+        case 'progress-desc': return b.percent - a.percent;
+        case 'progress-asc': return a.percent - b.percent;
+        case 'modules-desc': return b.completedModules - a.completedModules;
+        case 'name-asc': return a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' });
+        case 'name-desc': return b.fullName.localeCompare(a.fullName, undefined, { sensitivity: 'base' });
+        default: return 0;
+      }
+    });
+  }, [allLearners, progressSort, progressFilters]);
+
 
   const {
     data: topicsResponse,
@@ -314,7 +405,7 @@ export default function TutorDashboardPage() {
   } = useQuery<{ learners: ActivityLearner[]; summary: ActivitySummary }>({
     queryKey: ['activity-summary', selectedCourseId, selectedCohortId],
     enabled: Boolean(selectedCourseId) && Boolean(headers),
-    refetchInterval: 30_000,
+    refetchInterval: autoRefreshEnabled ? 30_000 : false,
     queryFn: async () => {
       const url = `/api/activity/courses/${selectedCourseId}/learners${selectedCohortId ? `?cohortId=${selectedCohortId}` : ''}`;
       const response = await apiRequest(
@@ -326,6 +417,18 @@ export default function TutorDashboardPage() {
       return response.json();
     }
   });
+
+  useEffect(() => {
+    if (activityResponse) {
+      setLastUpdated(new Date());
+    }
+  }, [activityResponse]);
+
+  const filteredAlerts = useMemo(() => {
+    const list = activityResponse?.learners ?? [];
+    if (activeAlertFilter === 'all') return list;
+    return list.filter(l => l.derivedStatus === activeAlertFilter);
+  }, [activityResponse, activeAlertFilter]);
 
   const {
     data: historyResponse,
@@ -371,33 +474,48 @@ export default function TutorDashboardPage() {
   const activitySummary = activityResponse?.summary ?? { engaged: 0, attention_drift: 0, content_friction: 0, unknown: 0 };
   const statusMeta: Record<
     NonNullable<ActivityLearner['derivedStatus']> | 'unknown',
-    { label: string; badgeClass: string; description: string; dotClass: string }
+    { label: string; badgeClass: string; description: string; dotClass: string; icon: string; accentColor: string; bgGradient: string }
   > = {
     engaged: {
-      label: 'Engaged',
-      badgeClass: 'bg-[#F0FFF4] text-[#38A169]',
-      dotClass: 'bg-[#38A169]',
-      description: 'Actively interacting with course content.'
+      label: 'ENGAGED',
+      badgeClass: 'bg-[#ECFDF5] text-[#059669] border-[#10B981]',
+      dotClass: 'bg-[#10B981]',
+      description: 'All focused',
+      icon: '🟢',
+      accentColor: '#10B981',
+      bgGradient: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)'
     },
     attention_drift: {
-      label: 'Attention drift',
-      badgeClass: 'bg-[#FFF7ED] text-[#D97706]',
-      dotClass: 'bg-[#D97706]',
-      description: 'Idle or pause cues observed.'
+      label: 'DRIFTING',
+      badgeClass: 'bg-[#FFFBEB] text-[#D97706] border-[#F59E0B]',
+      dotClass: 'bg-[#F59E0B]',
+      description: 'Needs nudge',
+      icon: '🟡',
+      accentColor: '#F59E0B',
+      bgGradient: 'linear-gradient(135deg, #FFFBEB, #FEF3C7)'
     },
     content_friction: {
-      label: 'Content friction',
-      badgeClass: 'bg-[#FFF5F5] text-[#E53E3E]',
-      dotClass: 'bg-[#E53E3E]',
-      description: 'Learner signaling friction.'
+      label: 'FRICTION',
+      badgeClass: 'bg-[#FEF2F2] text-[#DC2626] border-[#EF4444]',
+      dotClass: 'bg-[#EF4444]',
+      description: 'Stuck!',
+      icon: '🔴',
+      accentColor: '#EF4444',
+      bgGradient: 'linear-gradient(135deg, #FEF2F2, #FEE2E2)'
     },
     unknown: {
-      label: 'Unknown',
-      badgeClass: 'bg-[#F1F5F9] text-[#475569]',
-      dotClass: 'bg-[#94A3B8]',
-      description: 'Awaiting telemetry events.'
+      label: 'UNKNOWN',
+      badgeClass: 'bg-[#F9FAFB] text-[#6B7280] border-[#D1D5DB]',
+      dotClass: 'bg-[#D1D5DB]',
+      description: 'No data',
+      icon: '⚪',
+      accentColor: '#9CA3AF',
+      bgGradient: '#F9FAFB'
     }
   };
+
+
+  const statusOrder = ['engaged', 'attention_drift', 'content_friction', 'unknown'] as const;
 
   const selectedLearner = activityResponse?.learners.find((learner) => learner.userId === selectedLearnerId) ?? null;
   const selectedIdentity = selectedLearnerId ? learnerDirectory.get(selectedLearnerId) : null;
@@ -414,14 +532,14 @@ export default function TutorDashboardPage() {
       return 0;
     });
   }, [historyEvents]);
-  const statusOrder: Array<keyof typeof statusMeta> = ['engaged', 'attention_drift', 'content_friction', 'unknown'];
+
 
   const formatTimestamp = (timestamp: string) =>
     new Date(timestamp).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', year: 'numeric', month: 'short', day: 'numeric' });
 
   const EVENT_LABELS: Record<string, string> = {
-    'idle.start': 'Idle detected',
-    'idle.end': 'Attention resumed',
+    'idle.start': "Learner's attention wandered",
+    'idle.end': "Learner is back on track",
     'video.play': 'Video started',
     'video.pause': 'Video paused',
     'video.buffer.start': 'Video buffering',
@@ -440,13 +558,13 @@ export default function TutorDashboardPage() {
     'cold_call.star': 'Cold-call star awarded',
     'cold_call.response_received': 'Tutor responded to cold-call',
     'tutor.prompt': 'Tutor prompt sent',
-    'tutor.response_received': 'Tutor response received',
+    'tutor.response_received': 'Learner is stuck on content',
   };
 
   const STATUS_REASON_LABELS: Record<string, string> = {
     no_interaction: 'No interaction detected',
-    tab_hidden: 'Browser tab hidden',
-    tab_visible: 'Browser tab visible',
+    tab_hidden: 'Learner switched tabs',
+    tab_visible: 'Learner is back on track',
     video_play: 'Video playing',
     video_pause: 'Video paused',
   };
@@ -704,11 +822,13 @@ export default function TutorDashboardPage() {
   }, [progressResponse?.learners]);
 
   const navItems = [
-    { id: 'overview', label: 'Command Center' },
-    { id: 'classroom', label: 'Classroom' },
-    { id: 'monitoring', label: 'Live Monitor' },
-    { id: 'copilot', label: 'AI Copilot' }
+    { id: 'overview', label: 'Command Center', icon: Home },
+    { id: 'classroom', label: 'Classroom', icon: BookOpen },
+    { id: 'monitoring', label: 'Live Monitor', icon: Activity },
+    { id: 'copilot', label: 'AI Copilot', icon: Zap }
   ];
+
+  const [activeTab, setActiveTab] = useState('overview');
 
   const overviewStats = [
     {
@@ -716,27 +836,31 @@ export default function TutorDashboardPage() {
       value: totalEnrollments,
       suffix: '',
       helper: `${activitySummary.engaged} currently engaged`,
-      color: 'text-[#3182CE]',
-      border: 'border-l-4 border-l-[#90CDF4]',
-      bg: 'bg-white'
+      color: 'text-[#3B82F6]',
+      cardClass: 'stat-card-blue',
+      icon: Users,
+      iconColor: 'text-blue-400'
     },
     {
       label: 'Avg. progress',
       value: averageProgressPercent,
       suffix: '%',
       helper: progressResponse?.totalModules ? `${progressResponse.totalModules} modules tracked` : 'Across current cohort',
-      color: 'text-[#38A169]',
-      border: 'border-l-4 border-l-[#9AE6B4]',
-      bg: 'bg-white'
+      color: 'text-[#10B981]',
+      cardClass: 'stat-card-green',
+      icon: TrendingUp,
+      iconColor: 'text-green-400'
     },
     {
       label: 'Critical alerts',
       value: activitySummary.content_friction,
       suffix: '',
       helper: 'Content friction signals',
-      color: 'text-[#E53E3E]',
-      border: 'border-l-4 border-l-[#FEB2B2]',
-      bg: 'bg-white'
+      color: 'text-[#EF4444]',
+      cardClass: 'stat-card-red',
+      icon: Bell,
+      iconColor: 'text-red-400',
+      isPulsing: true
     }
   ];
 
@@ -797,95 +921,146 @@ export default function TutorDashboardPage() {
     <SiteLayout>
       <div className="min-h-screen">
         <div className="w-full pb-16 pt-6 text-[#1A202C]">
-          <section id="overview" className="border-b border-[#E6EAF0] bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.35em] text-[#718096]">Tutor Command Center</p>
-                <div>
-                  <h1 className="text-3xl font-semibold text-[#1A202C]">Welcome back, {session.fullName ?? 'Tutor'}</h1>
-                  <p className="text-sm text-[#718096]">
-                    Monitor every learner signal, respond to alerts, and guide your class from a single surface.
+          <section id="overview" className="mb-10">
+            {/* Two-Column Hero Section */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg mb-8">
+              <div className="flex flex-col lg:flex-row gap-10 items-center lg:items-start">
+                {/* LEFT COLUMN - Welcome Content (40%) */}
+                <div className="flex-none lg:w-[420px] space-y-6">
+                  {/* Label */}
+                  <p className="text-[11px] font-bold uppercase tracking-[1.5px] text-[#9CA3AF]">
+                    TUTOR COMMAND CENTER
                   </p>
+
+                  {/* Heading */}
+                  <div>
+                    <h1 className="text-[36px] font-bold text-[#1F2937] leading-[1.2] mb-3 font-['Plus_Jakarta_Sans',_'Outfit',_sans-serif]">
+                      Welcome back, {session.fullName ?? 'Tutor'}
+                    </h1>
+                    <p className="text-base text-[#6B7280] leading-[1.6] max-w-[450px]">
+                      Monitor every learner signal, respond to alerts, and guide your class from a single surface.
+                    </p>
+                  </div>
+
+                  {/* Controls Row */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <Select value={selectedCourseId ?? undefined} onValueChange={(value) => setSelectedCourseId(value)}>
+                      <SelectTrigger className="w-full sm:w-auto min-w-[280px] border-2 border-[#D1D5DB] bg-white text-left text-[#1F2937] rounded-lg px-4 py-2.5 text-sm font-medium hover:border-[#3B82F6] hover:shadow-sm transition-all">
+                        <SelectValue placeholder={coursesLoading ? 'Loading...' : 'Select course'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courses.map((course) => (
+                          <SelectItem key={course.courseId} value={course.courseId}>
+                            {course.title} {course.role ? `(${course.role})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      className="text-[#EF4444] text-sm font-medium hover:text-[#DC2626] hover:underline px-4"
+                      onClick={handleLogout}
+                    >
+                      Logout
+                    </Button>
+                  </div>
+
+                  {/* Info Text */}
+                  {courses.length > 0 && selectedCourseId && (
+                    <p className="text-[13px] text-[#9CA3AF]">
+                      Showing data for{' '}
+                      <span className="font-medium text-[#6B7280]">
+                        {courses.find((c) => c.courseId === selectedCourseId)?.title ?? 'your course'}
+                      </span>
+                    </p>
+                  )}
                 </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Select value={selectedCourseId ?? undefined} onValueChange={(value) => setSelectedCourseId(value)}>
-                    <SelectTrigger className="w-full border-[#E2E8F0] bg-white text-left text-[#1A202C] sm:w-[280px]">
-                      <SelectValue placeholder={coursesLoading ? 'Loading...' : 'Select course'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {courses.map((course) => (
-                        <SelectItem key={course.courseId} value={course.courseId}>
-                          {course.title} {course.role ? `(${course.role})` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    className="border-[#E2E8F0] text-[#4A5568] hover:bg-[#F8FAFC]"
-                    onClick={handleLogout}
-                  >
-                    Logout
-                  </Button>
+
+                {/* RIGHT COLUMN - Stats Cards (60%) */}
+                <div className="flex-1 w-full">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {overviewStats.map((stat) => {
+                      const IconComponent = stat.icon;
+                      return (
+                        <motion.div
+                          key={stat.label}
+                          whileHover={{
+                            y: -2,
+                            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.04)"
+                          }}
+                          transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                          className={`${stat.cardClass} rounded-xl p-5 shadow-sm cursor-default relative overflow-hidden min-h-[140px] flex flex-col`}
+                        >
+                          {/* Icon in top-right */}
+                          <div className="absolute top-5 right-5">
+                            <IconComponent
+                              className={`w-6 h-6 ${stat.iconColor} ${stat.isPulsing ? 'pulse-alert' : 'icon-bounce'}`}
+                            />
+                          </div>
+
+                          {/* Label */}
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-[#6B7280] mb-2">
+                            {stat.label}
+                          </p>
+
+                          {/* Number */}
+                          <div className={`text-[48px] font-bold leading-none tracking-tight ${stat.color} stat-number mb-2 flex-1 flex items-center`}>
+                            <NumberTicker value={stat.value} suffix={stat.suffix} />
+                          </div>
+
+                          {/* Helper text */}
+                          <p className="text-[13px] text-[#9CA3AF] font-medium">
+                            {stat.helper}
+                          </p>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
                 </div>
-                {courses.length > 0 && selectedCourseId && (
-                  <p className="text-sm text-[#718096]">
-                    Showing data for{' '}
-                    <span className="font-semibold text-[#1A202C]">
-                      {courses.find((c) => c.courseId === selectedCourseId)?.title ?? 'your course'}
-                    </span>
-                    .
-                  </p>
-                )}
-              </div>
-              <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {overviewStats.map((stat) => (
-                  <motion.div
-                    key={stat.label}
-                    whileHover={{
-                      y: -2,
-                      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05)"
-                    }}
-                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                    className={`flex flex-col h-full min-h-[140px] rounded-xl border border-[#E6EAF0] p-6 shadow-sm cursor-default transition-all ${stat.bg} ${stat.border}`}
-                  >
-                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#718096]">{stat.label}</p>
-                    <div className={`mt-2 text-4xl font-bold tracking-tight ${stat.color}`}>
-                      <NumberTicker value={stat.value} suffix={stat.suffix} />
-                    </div>
-                    <p className="mt-auto pt-4 text-[11px] font-medium text-[#718096] leading-relaxed border-t border-[#EDF2F7]">{stat.helper}</p>
-                  </motion.div>
-                ))}
               </div>
             </div>
           </section>
 
-          <nav className="mt-4 flex flex-wrap gap-2 text-sm text-[#718096]" aria-label="Tutor sections">
-            {navItems.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                onClick={() => handleSectionNav(item.id)}
-                className="rounded-full border border-[#E2E8F0] bg-white px-4 py-1.5 font-medium tracking-wide text-[#4A5568] shadow-sm transition hover:bg-[#F8FAFC] hover:text-[#2D3748] text-xs"
-              >
-                {item.label}
-              </button>
-            ))}
+          {/* Modern Pill Navigation */}
+          <nav className="mt-8 inline-flex bg-[#F9FAFB] p-2 rounded-xl gap-2" aria-label="Tutor sections">
+            {navItems.map((item) => {
+              const ItemIcon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    handleSectionNav(item.id);
+                  }}
+                  className={`tab-transition rounded-full px-6 py-3 text-sm font-medium flex items-center gap-2 ${isActive ? 'tab-pill-active' : 'tab-pill-inactive'
+                    }`}
+                >
+                  <ItemIcon className="w-4 h-4" />
+                  {item.label}
+                </button>
+              );
+            })}
           </nav>
 
-          <section id="classroom" className="mt-8 space-y-4">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#718096]">Classroom</p>
-              <h2 className="text-xl font-semibold text-[#1A202C]">Roster & Throughput</h2>
-              <p className="text-xs text-[#718096]">Stay on top of enrollments and module completion at a glance.</p>
+          <section id="classroom" className="mt-12 space-y-6">
+            {/* Clean Section Header */}
+            <div className="mb-6">
+              <p className="text-[10px] font-bold uppercase tracking-[1.5px] text-[#9CA3AF] mb-2">CLASSROOM</p>
+              <h2 className="text-[28px] font-bold text-[#1F2937] mb-2">Roster & Throughput</h2>
+              <div className="h-[3px] w-[40px] bg-[#10B981] rounded-full mb-3"></div>
+              <p className="text-[15px] text-[#6B7280]">Stay on top of enrollments and module completion at a glance.</p>
             </div>
-            <div className="grid gap-4 xl:grid-cols-2">
-              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
+
+            {/* Two-Column Grid Layout */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card className="border border-[#E5E7EB] bg-white text-[#1A202C] shadow-md rounded-xl overflow-hidden h-[600px] flex flex-col">
                 <CardHeader>
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <CardTitle className="text-[#1A202C]">Enrollments</CardTitle>
-                      <p className="text-sm text-[#718096]">{totalEnrollments} learners in the cohort</p>
+                      <CardTitle className="text-[20px] font-bold text-[#1F2937]">Enrollments</CardTitle>
+                      <p className="text-[13px] text-[#9CA3AF] mt-1">{totalEnrollments} learners in the cohort</p>
                     </div>
                     <div className="flex items-center gap-3">
                       {enrollmentSelection.selectedEmails.size > 0 && (
@@ -913,78 +1088,112 @@ export default function TutorDashboardPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="flex-1 overflow-hidden p-0">
                   {enrollmentsLoading ? (
-                    <p className="text-sm text-[#718096]">Loading enrollments...</p>
+                    <p className="text-sm text-[#718096] p-6">Loading enrollments...</p>
                   ) : (enrollmentsResponse?.enrollments ?? []).length === 0 ? (
-                    <p className="text-sm text-[#718096]">No enrollments yet.</p>
+                    <p className="text-sm text-[#718096] p-6">No enrollments yet.</p>
                   ) : (
-                    <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-2">
+                    <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth">
                       <Table>
-                        <TableHeader>
-                          <TableRow className="bg-[#F8FAFC] pointer-events-none hover:bg-[#F8FAFC] border-[#EDF2F7]">
-                            <TableHead className="w-12">
+                        <TableHeader className="sticky top-0 z-10 bg-white">
+                          <TableRow className="bg-[#F9FAFB] hover:bg-[#F9FAFB] border-b border-[#E5E7EB] h-14 shadow-sm">
+                            <TableHead className="w-12 py-0 align-middle text-center">
                               <Checkbox
                                 checked={enrollmentSelection.isAllSelected((enrollmentsResponse?.enrollments ?? []).map(e => e.email))}
                                 onCheckedChange={() => enrollmentSelection.toggleSelectAll((enrollmentsResponse?.enrollments ?? []).map(e => e.email))}
-                                className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748]"
+                                className="border-[#D1D5DB] data-[state=checked]:bg-[#3B82F6] data-[state=checked]:border-[#3B82F6]"
                               />
                             </TableHead>
-                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Learner</TableHead>
-                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Email</TableHead>
-                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Status</TableHead>
-                            <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Enrolled</TableHead>
+                            <TableHead className="text-[#6B7280] text-[11px] font-bold uppercase tracking-[0.5px] px-6 align-middle">Learner</TableHead>
+                            <TableHead className="text-[#6B7280] text-[11px] font-bold uppercase tracking-[0.5px] px-6 align-middle">Email</TableHead>
+                            <TableHead className="text-[#6B7280] text-[11px] font-bold uppercase tracking-[0.5px] px-6 align-middle text-center">Status</TableHead>
+                            <TableHead className="text-[#6B7280] text-[11px] font-bold uppercase tracking-[0.5px] px-6 align-middle text-center">Enrolled</TableHead>
+
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(enrollmentsResponse?.enrollments ?? []).map((enrollment) => (
-                            <TableRow key={enrollment.enrollmentId} className="border-[#EDF2F7] hover:bg-[#F1F5F9] cursor-pointer group/row transition-colors">
-                              <TableCell className="w-12">
-                                <Checkbox
-                                  checked={enrollmentSelection.selectedEmails.has(enrollment.email)}
-                                  onCheckedChange={() => enrollmentSelection.toggleEmailSelection(enrollment.email)}
-                                  className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748]"
-                                />
-                              </TableCell>
-                              <TableCell className="text-[#4A5568] font-semibold py-3 px-4">
-                                {enrollment.fullName}
-                              </TableCell>
-                              <TableCell className="py-3 px-4">
-                                <div className="flex items-center gap-2 group/email">
-                                  <div className="text-[#718096] text-[10px] leading-tight truncate">{enrollment.email}</div>
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-6 w-6 p-0 text-[#A0AEC0] hover:text-[#2D3748] hover:bg-[#EDF2F7] rounded-full transition-all shrink-0"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleOpenEmailModal({ email: enrollment.email, fullName: enrollment.fullName });
-                                          }}
-                                        >
-                                          <Mail className="h-3 w-3" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" className="bg-[#1A202C] text-white border-0 text-[10px] px-2 py-1">
-                                        Email learner
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                </div>
-                              </TableCell>
-                              <TableCell className="py-3 px-4">
-                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight border ${enrollment.status.toLowerCase() === 'active'
-                                  ? 'bg-[#F0FFF4] text-[#38A169] border-[#C6F6D5]'
-                                  : 'bg-[#EDF2F7] text-[#475569] border-[#E2E8F0]'
-                                  }`}>
-                                  {enrollment.status}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-[#A0AEC0] text-[10px] py-3 px-4 font-medium">{new Date(enrollment.enrolledAt).toLocaleDateString()}</TableCell>
-                            </TableRow>
-                          ))}
+                          {(enrollmentsResponse?.enrollments ?? []).map((enrollment) => {
+                            const progressInfo = allLearners.find(l => l.userId === enrollment.userId);
+                            const status = progressInfo?.status || LearnerStatus.NEEDS_SUPPORT;
+                            const percent = progressInfo?.percent || 0;
+                            const completed = progressInfo?.completedModules ?? 0;
+                            const total = progressInfo?.totalModules ?? 0;
+
+                            const statusStyles: Record<LearnerStatus, { border: string, bg: string, text: string, label: string }> = {
+                              [LearnerStatus.NEEDS_SUPPORT]: { border: '#EF4444', bg: '#FEF2F2', text: '#DC2626', label: 'Needs Support' },
+                              [LearnerStatus.MAKING_PROGRESS]: { border: '#F59E0B', bg: '#FFFBEB', text: '#D97706', label: 'Making Progress' },
+                              [LearnerStatus.ON_TRACK]: { border: '#10B981', bg: '#F0FDF4', text: '#059669', label: 'On Track' },
+                              [LearnerStatus.COMPLETED]: { border: '#3B82F6', bg: '#EFF6FF', text: '#2563EB', label: 'Completed' },
+                            };
+
+                            const style = statusStyles[status];
+
+                            return (
+                              <TableRow
+                                key={enrollment.enrollmentId}
+                                className="border-b border-[#EDF2F7] cursor-pointer group/row transition-all duration-200 h-16"
+                                style={{ borderLeft: `4px solid ${style.border}` }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = style.bg;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                              >
+                                <TableCell className="w-12 py-0 align-middle text-center">
+                                  <Checkbox
+                                    checked={enrollmentSelection.selectedEmails.has(enrollment.email)}
+                                    onCheckedChange={() => enrollmentSelection.toggleEmailSelection(enrollment.email)}
+                                    className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748]"
+                                  />
+                                </TableCell>
+                                <TableCell className="px-6 py-0 align-middle">
+                                  <div className="flex flex-col justify-center">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[#4A5568] font-bold text-[14px] leading-tight group-hover/row:text-[#1A202C] transition-colors">{enrollment.fullName}</span>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 w-6 p-0 rounded-full text-slate-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleOpenEmailModal({ email: enrollment.email, fullName: enrollment.fullName });
+                                        }}
+                                      >
+                                        <Mail className="w-3.5 h-3.5" />
+                                      </Button>
+                                    </div>
+                                    <span className="text-[11px] text-[#9CA3AF] mt-0.5 font-medium whitespace-nowrap">
+                                      {total > 0 ? `${completed}/${total} modules completed` : 'No modules started'}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="px-6 py-0 align-middle">
+                                  <span className="text-[13px] text-[#718096] font-medium block truncate max-w-[180px]">
+                                    {enrollment.email}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="px-6 py-0 align-middle text-center">
+                                  <div className="flex justify-center">
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px] font-bold px-3 py-1 rounded-full whitespace-nowrap min-w-[125px] h-8 flex items-center justify-center border transition-all"
+                                      style={{ backgroundColor: style.bg, color: style.text, borderColor: style.border + '40' }}
+                                    >
+                                      {style.label}
+                                    </Badge>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="px-6 py-0 align-middle text-center">
+                                  <span className="text-[12px] font-bold text-[#4A5568] tabular-nums whitespace-nowrap">
+                                    {new Date(enrollment.enrolledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </span>
+                                </TableCell>
+
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -992,298 +1201,358 @@ export default function TutorDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
-                <CardHeader>
-                  <CardTitle className="text-[#1A202C]">Learner progress</CardTitle>
-                  <p className="text-xs text-[#718096] font-normal leading-relaxed">
-                    Average completion {averageProgressPercent}% across {progressResponse?.totalModules ?? 0} modules
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  {progressLoading ? (
-                    <p className="text-sm text-[#718096]">Loading progress...</p>
-                  ) : (progressResponse?.learners ?? []).length === 0 ? (
-                    <p className="text-sm text-[#718096]">No progress yet.</p>
-                  ) : (
-                    <div className="relative group/scroll">
-                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-2">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-[#F8FAFC] pointer-events-none border-[#EDF2F7]">
-                              <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Learner</TableHead>
-                              <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Modules</TableHead>
-                              <TableHead className="text-[#718096] text-[10px] font-bold uppercase tracking-wider">Percent</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(() => {
-                              const learners = progressResponse?.learners ?? [];
-                              return [...learners].sort((a, b) => a.percent - b.percent);
-                            })().map((learner) => (
-                              <TableRow key={learner.userId} className="border-[#EDF2F7] hover:bg-[#F1F5F9] cursor-pointer transition-colors group/row">
-
-                                <TableCell className="py-2.5 px-4">
-                                  <div className="font-semibold text-[#4A5568] leading-tight">{learner.fullName}</div>
-                                  <div className="text-[10px] text-[#718096] leading-tight mt-0.5">{learner.email}</div>
-                                </TableCell>
-                                <TableCell className="text-[#718096] text-[10px] py-2.5 px-4 font-medium">
-                                  {learner.completedModules}/{learner.totalModules}
-                                </TableCell>
-                                <TableCell className="text-[#1A202C] py-2.5 px-4 min-w-[140px]">
-                                  <div className="flex items-center gap-3">
-                                    <div className="h-2.5 flex-1 rounded-full bg-[#EDF2F7] overflow-hidden">
-                                      <div
-                                        className="h-full rounded-full bg-[#38A169] shadow-sm"
-                                        style={{ width: `${learner.percent}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-[11px] font-bold text-[#718096] min-w-[32px] text-right">{learner.percent}%</span>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+              <Card className="border border-[#E5E7EB] bg-white text-[#1A202C] shadow-md rounded-xl overflow-hidden h-[600px] flex flex-col">
+                <CardHeader className="border-b-2 border-[#F3F4F6] p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">📊</span>
+                        <CardTitle className="text-2xl font-bold text-[#1F2937]">Learner Progress</CardTitle>
                       </div>
-                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
+                      <div className="w-[60px] h-1 bg-gradient-to-r from-[#10B981] to-[#3B82F6] rounded-full" />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </section>
+                    <div className="flex items-center gap-2">
+                      {/* Sort Dropdown */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className={`bg-[#F3F4F6] border-[#D1D5DB] text-[#4B5563] font-medium rounded-lg px-4 hover:bg-[#E5E7EB] transition-colors ${progressSort !== 'progress-desc' ? 'border-[#3B82F6] ring-1 ring-[#3B82F6]/20' : ''}`}>
+                            <TrendingUp className="mr-2 h-3.5 w-3.5" />
+                            Sort <span className="ml-1 text-[10px]">▼</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-60">
+                          <DropdownMenuLabel>Sort Options</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuRadioGroup value={progressSort} onValueChange={setProgressSort}>
+                            <DropdownMenuRadioItem value="progress-desc" className="cursor-pointer">Progress (High → Low)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="progress-asc" className="cursor-pointer">Progress (Low → High)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="modules-desc" className="cursor-pointer">Modules Completed (High → Low)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="name-asc" className="cursor-pointer">Name (A → Z)</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="name-desc" className="cursor-pointer">Name (Z → A)</DropdownMenuRadioItem>
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
 
-          <section id="monitoring" className="mt-8 space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#718096]">Intervention Zone</p>
-                <h2 className="text-xl font-semibold text-[#1A202C]">Engagement & Alerts</h2>
-                <p className="text-xs text-[#718096]">
-                  Assess signals and take directed action to guide learners back to flow.
-                </p>
-              </div>
-            </div>
+                      {/* Filter Popover */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className={`bg-[#F3F4F6] border-[#D1D5DB] text-[#4B5563] font-medium rounded-lg px-4 hover:bg-[#E5E7EB] transition-colors relative ${progressFilters.statuses.length > 0 || progressFilters.range !== 'all' || progressFilters.incompleteOnly ? 'border-[#3B82F6] ring-1 ring-[#3B82F6]/20' : ''}`}>
+                            <ListFilter className="mr-2 h-3.5 w-3.5" />
+                            Filter <span className="ml-1 text-[10px]">▼</span>
+                            {(progressFilters.statuses.length + (progressFilters.range !== 'all' ? 1 : 0) + (progressFilters.incompleteOnly ? 1 : 0)) > 0 && (
+                              <Badge className="absolute -top-2 -right-2 h-5 min-w-5 rounded-full p-0 flex items-center justify-center text-[10px] bg-[#3B82F6] border-2 border-white">
+                                {progressFilters.statuses.length + (progressFilters.range !== 'all' ? 1 : 0) + (progressFilters.incompleteOnly ? 1 : 0)}
+                              </Badge>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 p-4" align="end">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-semibold text-sm">Filter Learners</h4>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setProgressFilters({ statuses: [], range: 'all', incompleteOnly: false })}
+                                className="h-7 px-2 text-xs text-[#3B82F6] hover:text-[#2563EB] hover:bg-blue-50"
+                              >
+                                Clear All
+                              </Button>
+                            </div>
+                            <DropdownMenuSeparator />
 
-            <div className="flex flex-wrap gap-2 mt-2">
-              {statusOrder.map((key) => (
-                <div
-                  key={key}
-                  className="flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-2 py-0.5 shadow-sm transition hover:border-[#CBD5E0]"
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[key].dotClass} animate-pulse`} />
-                  <div className="flex items-center gap-1">
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-[#4A5568]">{statusMeta[key].label}</p>
-                    <span className="h-1 w-1 rounded-full bg-[#E2E8F0]" />
-                    <p className="text-[9px] font-medium text-[#718096]">{activitySummary[key as keyof ActivitySummary]}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-2 mt-4">
-              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)] flex flex-col">
-                <CardHeader className="flex flex-row items-start justify-between space-y-0">
-                  <div>
-                    <CardTitle className="text-[#1A202C]">Alert Feed</CardTitle>
-                    <p className="text-xs text-[#718096]">
-                      {activityFetching ? 'Refreshing telemetry...' : 'Snapshots refresh automatically every 30 seconds.'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {alertSelection.selectedEmails.size > 0 && (
-                      <Button
-                        onClick={() => handleBulkEmail('alert')}
-                        size="sm"
-                        className="bg-[#2D3748] text-white hover:bg-[#1A202C] animate-in fade-in zoom-in duration-200 shrink-0"
-                      >
-                        <Mail className="mr-2 h-4 w-4" />
-                        Email Group ({alertSelection.selectedEmails.size})
-                      </Button>
-                    )}
-                    <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-[#F8FAFC] border border-[#EDF2F7]">
-                      <Checkbox
-                        id="select-all-alerts"
-                        checked={alertSelection.isAllSelected((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
-                        onCheckedChange={() => alertSelection.toggleSelectAll((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
-                        className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748]"
-                      />
-                      <label htmlFor="select-all-alerts" className="text-[10px] font-bold uppercase tracking-wider text-[#718096] cursor-pointer select-none">
-                        Select All
-                      </label>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  {activityError ? (
-                    <p className="text-sm text-[#E53E3E]">
-                      Unable to load learner telemetry right now. Please retry shortly.
-                    </p>
-                  ) : activityLoading ? (
-                    <div className="space-y-3">
-                      {[0, 1, 2].map((index) => (
-                        <Skeleton key={index} className="h-24 w-full rounded-2xl bg-[#F8FAFC]" />
-                      ))}
-                    </div>
-                  ) : (activityResponse?.learners ?? []).length === 0 ? (
-                    <p className="text-sm text-[#718096]">
-                      No telemetry yet. As learners watch, read, attempt quizzes, or interact with widgets, they will appear here.
-                    </p>
-                  ) : (
-                    <div className="relative group/scroll">
-                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-2 pb-12">
-                        <div className="space-y-2">
-                          {(activityResponse?.learners ?? []).map((learner) => {
-                            const directoryIdentity = learnerDirectory.get(learner.userId);
-                            const identity = {
-                              fullName: learner.fullName || directoryIdentity?.fullName,
-                              email: learner.email || directoryIdentity?.email
-                            };
-                            const key = (learner.derivedStatus ?? 'unknown') as keyof typeof statusMeta;
-                            const meta = statusMeta[key];
-                            const isActive = selectedLearnerId === learner.userId;
-                            const reasonLabel = formatStatusReason(learner.statusReason);
-                            return (
-                              <div key={learner.userId} className="flex items-center gap-3 pr-2">
-                                <Checkbox
-                                  checked={identity?.email ? alertSelection.selectedEmails.has(identity.email) : false}
-                                  onCheckedChange={() => identity?.email && alertSelection.toggleEmailSelection(identity.email)}
-                                  disabled={!identity?.email}
-                                  className="border-[#CBD5E0] data-[state=checked]:bg-[#2D3748] data-[state=checked]:border-[#2D3748] shrink-0"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedLearnerId(learner.userId)}
-                                  className={`flex-1 rounded-xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2E8F0] ${isActive ? 'border-[#CBD5E0] bg-[#F8FAFC] shadow-sm' : 'border-[#EDF2F7] bg-white hover:bg-[#F8FAFC]'
-                                    }`}
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-semibold text-[#1A202C] line-clamp-1">
-                                        {identity.fullName ?? 'Learner'}{' '}
-                                        {!identity.fullName && (
-                                          <span className="text-xs text-[#718096]">({learner.userId.slice(0, 6)})</span>
-                                        )}
-                                      </p>
-                                      <p className="text-[11px] text-[#718096] truncate">{identity.email ?? 'Email unavailable'}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
-                                        {meta.label}
-                                      </Badge>
-                                      {identity?.email && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-8 w-8 p-0 text-[#A0AEC0] hover:text-[#2D3748] hover:bg-[#EDF2F7] rounded-full"
-                                          title="Email learner about this engagement issue"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleOpenEmailModal({ email: identity.email!, fullName: identity.fullName ?? 'Learner' });
-                                          }}
-                                        >
-                                          <Mail className="h-4 w-4" />
-                                        </Button>
-                                      )}
-                                    </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF]">By Status</Label>
+                              <div className="grid grid-cols-2 gap-2 mt-1">
+                                {[
+                                  { value: LearnerStatus.NEEDS_SUPPORT, label: 'Needs Support' },
+                                  { value: LearnerStatus.MAKING_PROGRESS, label: 'Making Progress' },
+                                  { value: LearnerStatus.ON_TRACK, label: 'On Track' },
+                                  { value: LearnerStatus.COMPLETED, label: 'Completed' }
+                                ].map(({ value, label }) => (
+                                  <div key={value} className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`status-${value}`}
+                                      className="h-4 w-4"
+                                      checked={progressFilters.statuses.includes(value)}
+                                      onCheckedChange={(checked) => {
+                                        setProgressFilters(prev => ({
+                                          ...prev,
+                                          statuses: checked
+                                            ? [...prev.statuses, value]
+                                            : prev.statuses.filter(s => s !== value)
+                                        }));
+                                      }}
+                                    />
+                                    <Label htmlFor={`status-${value}`} className="text-xs font-medium cursor-pointer leading-none">{label}</Label>
                                   </div>
-                                  {reasonLabel && <p className="mt-2 text-xs text-[#4A5568] line-clamp-2">{reasonLabel}</p>}
-                                  <p className="mt-2 text-[10px] text-[#A0AEC0]">Updated {formatTimestamp(learner.createdAt)}</p>
-                                </button>
+                                ))}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent opacity-60" />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                            </div>
 
-              <Card className="border-[#E6EAF0] bg-white text-[#1A202C] shadow-[0_4px_12px_rgba(0,0,0,0.05)] flex flex-col">
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-3 min-h-[56px]">
-                    <div>
-                      <CardTitle className="text-[#1A202C]">Learner detail</CardTitle>
-                      {selectedIdentity && (
-                        <p className="text-sm text-[#2D3748] font-medium truncate max-w-[200px]">
-                          {selectedIdentity.fullName}
-                        </p>
-                      )}
+                            <div className="space-y-2 pt-1">
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-[#9CA3AF]">Progress Range</Label>
+                              <Select value={progressFilters.range} onValueChange={(val) => setProgressFilters(prev => ({ ...prev, range: val }))}>
+                                <SelectTrigger className="h-9 text-xs">
+                                  <SelectValue placeholder="All progress levels" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="all" className="text-xs">All Progress Levels</SelectItem>
+                                  <SelectItem value="0-25" className="text-xs">0% - 25% (Critical)</SelectItem>
+                                  <SelectItem value="26-50" className="text-xs">26% - 50% (Emerging)</SelectItem>
+                                  <SelectItem value="51-75" className="text-xs">51% - 75% (Improving)</SelectItem>
+                                  <SelectItem value="76-100" className="text-xs">76% - 100% (Advanced)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="flex items-center space-x-2 pt-2 border-t border-[#F3F4F6]">
+                              <Checkbox
+                                id="incomplete-only"
+                                className="h-4 w-4"
+                                checked={progressFilters.incompleteOnly}
+                                onCheckedChange={(checked) => setProgressFilters(prev => ({ ...prev, incompleteOnly: !!checked }))}
+                              />
+                              <Label htmlFor="incomplete-only" className="text-xs font-semibold cursor-pointer text-[#4B5563]">Show only incomplete modules</Label>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
-                    {selectedLearner && (
-                      <Badge
-                        variant="secondary"
-                        className={`${statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].badgeClass} border-0`}
-                      >
-                        {statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].label}
-                      </Badge>
-                    )}
+                  </div>
+                  <div className="mt-4 flex items-center gap-4 text-sm font-medium">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-[#6B7280]">Average:</span>
+                      <span className={`text-2xl font-bold ${averageProgressPercent < 30 ? 'text-[#EF4444]' : 'text-[#3B82F6]'}`}>
+                        {averageProgressPercent}%
+                      </span>
+                      <span className="text-[#6B7280] ml-1">across {progressResponse?.totalModules ?? 0} modules</span>
+                    </div>
+                    <span className="text-[#E5E7EB]">•</span>
+                    <div className="flex items-center gap-1.5 text-[#F59E0B]">
+                      <span>⚠️</span>
+                      <span>{(progressResponse?.learners ?? []).filter(l => l.percent < 30).length} need attention</span>
+                    </div>
+                    <span className="text-[#E5E7EB]">•</span>
+                    <div className="flex items-center gap-1.5 text-[#9CA3AF]">
+                      <span>✅</span>
+                      <span>{(progressResponse?.learners ?? []).filter(l => l.percent === 100).length} completed</span>
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent className="flex-1">
-                  {!selectedLearnerId ? (
-                    <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
-                      <div className="w-16 h-16 rounded-full bg-[#F8FAFC] flex items-center justify-center mb-4">
-                        <MessageSquare className="w-8 h-8 text-[#CBD5E0]" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-[#1A202C]">No learner selected</h3>
-                      <p className="text-sm text-[#718096] max-w-[200px] mt-2">
-                        Select a learner from the list to view their engagement details and recent activity.
-                      </p>
-                    </div>
+                <CardContent className="flex-1 overflow-hidden p-0">
+                  {progressLoading ? (
+                    <p className="text-sm text-[#718096] p-6">Loading progress...</p>
+                  ) : (progressResponse?.learners ?? []).length === 0 ? (
+                    <p className="text-sm text-[#718096] p-6">No progress yet.</p>
                   ) : (
-                    <div className="relative group/scroll">
-                      <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth pr-1 pb-12">
-                        {historyLoading || historyFetching ? (
-                          <div className="space-y-2">
-                            {[0, 1, 2].map((index) => (
-                              <Skeleton key={index} className="h-20 w-full rounded-xl bg-[#F8FAFC]" />
-                            ))}
-                          </div>
-                        ) : sortedHistoryEvents.length === 0 ? (
-                          <div className="text-center py-10 text-slate-500">
-                            <p className="text-sm">No events recorded for this learner yet.</p>
+                    <div className="relative group/scroll h-full">
+                      <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-[#E2E8F0] scrollbar-track-transparent hover:scrollbar-thumb-[#CBD5E0] scroll-smooth">
+                        {filteredAndSortedLearners.length === 0 ? (
+                          <div className="py-20 text-center bg-[#F9FAFB] rounded-xl border-2 border-dashed border-[#E5E7EB] mt-4 flex flex-col items-center justify-center">
+                            <div className="bg-[#F3F4F6] w-14 h-14 rounded-full flex items-center justify-center mb-4 text-[#9CA3AF]">
+                              <Filter className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-[#1F2937] font-bold text-lg">No learners match the selected filters.</h3>
+                            <p className="text-[#6B7280] text-sm mt-1 max-w-[250px] mx-auto">Try adjusting your filters to find who you're looking for.</p>
+                            <Button
+                              variant="outline"
+                              className="mt-6 border-[#3B82F6] text-[#3B82F6] hover:bg-blue-50"
+                              onClick={() => setProgressFilters({ statuses: [], range: 'all', incompleteOnly: false })}
+                            >
+                              Reset all filters
+                            </Button>
                           </div>
                         ) : (
-                          <div className="space-y-2">
-                            {sortedHistoryEvents.map((event, index) => {
-                              const meta = statusMeta[(event.derivedStatus ?? 'unknown') as keyof typeof statusMeta];
-                              const eventLabel = formatEventLabel(event.eventType);
-                              const reasonLabel = formatStatusReason(event.statusReason);
-                              return (
-                                <div
-                                  key={event.eventId ?? `${event.eventType}-${event.createdAt}-${event.moduleNo ?? 'm'}-${index}`}
-                                  className="rounded-2xl border border-slate-100 bg-white px-4 py-3 shadow-sm hover:border-slate-200 transition"
-                                >
-                                  <div className="flex items-center justify-between gap-3 mb-2">
-                                    <Badge variant="secondary" className={`${meta.badgeClass} border-0 text-[10px]`}>
-                                      {meta.label}
-                                    </Badge>
-                                    <span className="text-[10px] font-medium text-slate-400">{formatTimestamp(event.createdAt)}</span>
+                          <div className="space-y-0">
+                            {(() => {
+                              const learners = filteredAndSortedLearners;
+                              // Unique avatar gradients for visual differentiation
+                              const avatarGradients = [
+                                'linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%)',
+                                'linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%)',
+                                'linear-gradient(135deg, #A8E6CF 0%, #3DDC84 100%)',
+                                'linear-gradient(135deg, #FFA07A 0%, #FFD93D 100%)',
+                                'linear-gradient(135deg, #6C5CE7 0%, #A29BFE 100%)',
+                              ];
+                              return learners.map((learner, index) => {
+                                // Determine color theme based on progress
+                                const getProgressTheme = (percent: number) => {
+                                  if (percent === 0) return {
+                                    color: '#EF4444',
+                                    gradient: 'linear-gradient(90deg, #FEE2E2 0%, #FEE2E2 100%)',
+                                    borderColor: '#EF4444',
+                                    textColor: '#DC2626',
+                                    icon: '⚠️',
+                                    message: 'Not started yet',
+                                    messageColor: '#9CA3AF'
+                                  };
+                                  if (percent <= 25) return {
+                                    color: '#EF4444',
+                                    gradient: 'linear-gradient(90deg, #EF4444 0%, #DC2626 100%)',
+                                    borderColor: '#EF4444',
+                                    textColor: '#DC2626',
+                                    icon: '🔴',
+                                    message: 'Needs support',
+                                    messageColor: '#DC2626'
+                                  };
+                                  if (percent <= 50) return {
+                                    color: '#F59E0B',
+                                    gradient: 'linear-gradient(90deg, #F59E0B 0%, #D97706 100%)',
+                                    borderColor: '#F59E0B',
+                                    textColor: '#D97706',
+                                    icon: '🟡',
+                                    message: 'Making progress',
+                                    messageColor: '#D97706'
+                                  };
+                                  if (percent <= 75) return {
+                                    color: '#3B82F6',
+                                    gradient: 'linear-gradient(90deg, #3B82F6 0%, #2563EB 100%)',
+                                    borderColor: '#3B82F6',
+                                    textColor: '#2563EB',
+                                    icon: '🔵',
+                                    message: 'On track!',
+                                    messageColor: '#2563EB'
+                                  };
+                                  if (percent < 100) return {
+                                    color: '#10B981',
+                                    gradient: 'linear-gradient(90deg, #10B981 0%, #059669 100%)',
+                                    borderColor: '#10B981',
+                                    textColor: '#059669',
+                                    icon: '🟢',
+                                    message: 'Almost there!',
+                                    messageColor: '#059669'
+                                  };
+                                  return {
+                                    color: '#FFD700',
+                                    gradient: 'linear-gradient(90deg, #FFD700 0%, #FFA500 100%)',
+                                    borderColor: '#FFD700',
+                                    textColor: '#FFA500',
+                                    icon: '✅',
+                                    message: 'Completed! 🎉',
+                                    messageColor: '#059669'
+                                  };
+                                };
+
+                                const theme = getProgressTheme(learner.percent);
+                                const avatarGradient = avatarGradients[index % avatarGradients.length];
+
+                                // Determine hover background based on progress
+                                const getHoverBg = (percent: number) => {
+                                  if (percent <= 25) return '#FEF2F2';
+                                  if (percent <= 50) return '#FFFBEB';
+                                  if (percent <= 75) return '#EFF6FF';
+                                  if (percent < 100) return '#F0FDF4';
+                                  return '#FFFBEB';
+                                };
+
+                                return (
+                                  <div
+                                    key={learner.userId}
+                                    className="border-b border-[#F3F4F6] transition-all duration-300 cursor-pointer group/row relative"
+                                    style={{
+                                      borderLeft: `5px solid ${theme.borderColor}`
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor = getHoverBg(learner.percent);
+                                      e.currentTarget.style.transform = 'translateX(2px)';
+                                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor = 'transparent';
+                                      e.currentTarget.style.transform = 'translateX(0)';
+                                      e.currentTarget.style.boxShadow = 'none';
+                                    }}
+                                  >
+                                    <div className="grid grid-cols-12 gap-4 items-center py-4 px-6">
+                                      {/* Student Info - 5 columns */}
+                                      <div className="col-span-5">
+                                        <div className="flex items-center gap-3">
+
+                                          <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 group/name_row">
+                                              <div className="font-semibold text-[15px] text-[#1F2937] truncate group-hover/row:text-[#3B82F6] transition-colors leading-tight">
+                                                {learner.fullName}
+                                              </div>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 opacity-0 group-hover/name_row:opacity-100 transition-all hover:bg-blue-50 text-[#3B82F6] shrink-0"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleOpenEmailModal({ email: learner.email, fullName: learner.fullName });
+                                                }}
+                                              >
+                                                <Mail className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </div>
+                                            <div className="text-[12px] text-[#9CA3AF] truncate flex items-center gap-1 mt-0.5">
+                                              <span className="text-[11px]">✉️</span>
+                                              {learner.email}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 mt-1 font-bold text-[10px] uppercase tracking-wider">
+                                              <span className={`h-1.5 w-1.5 rounded-full ${learner.percent === 0 ? 'bg-gray-400' : learner.percent < 30 ? 'bg-red-500' : 'bg-green-500'}`} />
+                                              <span style={{ color: learner.percent === 0 ? '#9CA3AF' : learner.percent < 30 ? '#EF4444' : '#10B981' }}>
+                                                {learner.percent === 0 ? 'Not started' : learner.percent < 30 ? 'Attention' : 'On Track'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Module Count with Dots - 3 columns */}
+                                      <div className="col-span-3 text-center">
+                                        <div
+                                          className="text-[20px] font-bold leading-none mb-1"
+                                          style={{ color: theme.textColor }}
+                                        >
+                                          {learner.completedModules}/{learner.totalModules}
+                                        </div>
+                                        <div className="flex justify-center gap-1 mt-1">
+                                          {Array.from({ length: learner.totalModules }).map((_, i) => (
+                                            <div
+                                              key={i}
+                                              className="w-1.5 h-1.5 rounded-full"
+                                              style={{
+                                                backgroundColor: i < learner.completedModules ? theme.color : '#D1D5DB',
+                                                opacity: i < learner.completedModules ? 1 : 0.3
+                                              }}
+                                            />
+                                          ))}
+                                        </div>
+                                        <div className="text-[9px] text-[#9CA3AF] uppercase font-bold tracking-widest mt-1">modules</div>
+                                      </div>
+
+                                      {/* Progress Bar + Status - 4 columns */}
+                                      <div className="col-span-4">
+                                        <div className="space-y-1.5">
+                                          <div className="flex items-center gap-3">
+                                            <div className="flex-1 h-3 rounded-full bg-[#F3F4F6] overflow-hidden shadow-inner border border-[#E5E7EB]">
+                                              <div
+                                                className="h-full rounded-full transition-all duration-1500 ease-out"
+                                                style={{
+                                                  width: `${learner.percent}%`,
+                                                  background: theme.gradient
+                                                }}
+                                              />
+                                            </div>
+                                            <div className="flex items-center gap-1 min-w-[65px] justify-end">
+                                              <span className="text-sm">{theme.icon}</span>
+                                              <span className="text-[16px] font-bold" style={{ color: theme.textColor }}>
+                                                {learner.percent}%
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <div className="text-[10px] font-bold pl-0.5 uppercase tracking-wide" style={{ color: theme.messageColor }}>
+                                            {theme.message}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <p className="text-sm font-bold text-slate-900">{eventLabel}</p>
-                                  {reasonLabel && <p className="mt-1 text-xs text-slate-600 italic">"{reasonLabel}"</p>}
-                                  <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-400 font-medium">
-                                    <span className="rounded-md bg-slate-50 px-2 py-1">
-                                      {(() => {
-                                        const topicMeta = event.topicId ? topicTitleLookup.get(event.topicId) : null;
-                                        return topicMeta
-                                          ? topicMeta.moduleName ?? `Module ${topicMeta.moduleNo}`
-                                          : `Module ${event.moduleNo ?? 'n/a'}`;
-                                      })()}
-                                    </span>
-                                    <span className="text-slate-200">•</span>
-                                    <span className="truncate">
-                                      {(() => {
-                                        const topicMeta = event.topicId ? topicTitleLookup.get(event.topicId) : null;
-                                        return topicMeta?.title ?? (event.topicId ? `Topic ${event.topicId.slice(0, 8)}` : 'Topic n/a');
-                                      })()}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })
+                            })()}
                           </div>
                         )}
                       </div>
@@ -1292,6 +1561,465 @@ export default function TutorDashboardPage() {
                   )}
                 </CardContent>
               </Card>
+            </div >
+          </section >
+
+          <section id="monitoring" className="mt-12 space-y-6">
+            {/* 1. SECTION HEADER - Compact */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">🚨</span>
+                <h2 className="text-[20px] font-bold text-[#1F2937] tracking-tight">Monitoring Strip</h2>
+                <div className="h-4 w-[1px] bg-slate-200 mx-1 hidden sm:block"></div>
+                <p className="text-[12px] font-medium text-[#6B7280] hidden sm:block">Real-time engagement telemetry</p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 px-2 py-1 bg-slate-50 rounded-lg border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 rounded-full ${autoRefreshEnabled ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`}></span>
+                    {activityFetching ? 'Syncing...' : `${Math.floor((new Date().getTime() - lastUpdated.getTime()) / 1000)}s ago`}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 hover:bg-white rounded-md transition-all"
+                    onClick={() => activityResponse && setLastUpdated(new Date())}
+                  >
+                    <Activity className={`w-3 h-3 text-slate-500 ${activityFetching ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+                    className={`w-8 h-4 rounded-full p-0.5 cursor-pointer transition-colors duration-200 ease-in-out ${autoRefreshEnabled ? 'bg-green-500' : 'bg-slate-300'}`}
+                  >
+                    <div className={`bg-white w-3 h-3 rounded-full shadow-sm transform transition-transform duration-200 ease-in-out ${autoRefreshEnabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                  </div>
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-tight cursor-pointer">Live</Label>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. MONITORING STRIP - High Density Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+              {statusOrder.filter(k => k !== 'unknown').map((key) => {
+                const meta = statusMeta[key];
+                const count = activitySummary[key as keyof ActivitySummary];
+                const isActive = activeAlertFilter === key;
+                const isCritical = key === 'content_friction' && count > 0;
+
+                return (
+                  <motion.div
+                    key={key}
+                    whileHover={{ y: -2 }}
+                    onClick={() => setActiveAlertFilter(isActive ? 'all' : key as any)}
+                    className={`relative cursor-pointer h-[90px] rounded-xl p-3 px-4 transition-all duration-200 border flex items-center gap-4 group
+                      ${isActive ? 'ring-1 ring-blue-500 bg-blue-50/10' : 'bg-white'}
+                    `}
+                    style={{
+                      borderColor: isActive ? '#3B82F6' : meta.accentColor + '30',
+                      boxShadow: isCritical ? `0 0 15px ${meta.accentColor}20` : 'none'
+                    }}
+                  >
+                    <div
+                      className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm shrink-0"
+                      style={{ background: meta.bgGradient, color: meta.accentColor }}
+                    >
+                      {meta.icon}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between mb-0.5">
+                        <span className={`text-[10px] font-black tracking-widest uppercase ${isActive ? 'text-blue-600' : 'text-slate-500'}`}>
+                          {meta.label}
+                        </span>
+                        {isCritical && (
+                          <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping"></span>
+                        )}
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-black tabular-nums tracking-tighter" style={{ color: isActive ? '#3B82F6' : meta.accentColor }}>
+                          {count}
+                        </span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase truncate">
+                          {meta.description.split(' ')[0]} {key === 'engaged' ? 'Flow' : 'Alerts'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isActive && (
+                      <div className="absolute top-2 right-2">
+                        <X className="w-3 h-3 text-blue-500" />
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 mt-12">
+              {/* LEFT PANEL: ALERT FEED (60%) */}
+              <div className="lg:col-span-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                      <Bell className="w-5 h-5 text-slate-600 group-hover:animate-bounce transition-transform" />
+                      {filteredAlerts.some(l => l.derivedStatus === 'content_friction') && (
+                        <div className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></div>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">Alert Feed</h3>
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        {activityFetching ? (
+                          <span className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+                            Refreshing telemetry...
+                          </span>
+                        ) : (
+                          'Auto-refreshes every 30 seconds'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {alertSelection.selectedEmails.size > 0 && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#2D3748] rounded-full shadow-lg animate-in slide-in-from-right-4 duration-300">
+                        <span className="text-[11px] font-bold text-white px-2 border-r border-slate-600">
+                          {alertSelection.selectedEmails.size} Selected
+                        </span>
+                        <div className="flex items-center gap-1 pl-1">
+                          <Button
+                            onClick={() => handleBulkEmail('alert')}
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-[10px] text-white hover:bg-white/10"
+                          >
+                            <Mail className="w-3.5 h-3.5 mr-1.5" />
+                            Email
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-[10px] text-white hover:bg-white/10"
+                            onClick={() => alertSelection.clearSelection()}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <Checkbox
+                        id="select-all-alerts"
+                        checked={alertSelection.isAllSelected((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
+                        onCheckedChange={() => alertSelection.toggleSelectAll((activityResponse?.learners ?? []).map(l => l.email).filter((e): e is string => !!e))}
+                        className="border-[#CBD5E0] shadow-sm data-[state=checked]:bg-[#3B82F6] data-[state=checked]:border-[#3B82F6]"
+                      />
+                      <label htmlFor="select-all-alerts" className="text-[11px] font-black uppercase tracking-wider text-slate-500 cursor-pointer select-none">
+                        Select All
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 max-h-[850px] overflow-y-auto pr-3 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                  {activityError ? (
+                    <div className="bg-red-50 border-2 border-dashed border-red-200 rounded-2xl p-8 text-center">
+                      <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Activity className="w-6 h-6 text-red-500" />
+                      </div>
+                      <h4 className="font-bold text-red-900">Connection Interrupted</h4>
+                      <p className="text-red-700 text-sm mt-1">Unable to load learner telemetry right now. Please retry shortly.</p>
+                      <Button onClick={() => activityResponse && setLastUpdated(new Date())} variant="outline" className="mt-4 border-red-200 text-red-700 hover:bg-red-100">Retry Manual Refresh</Button>
+                    </div>
+                  ) : activityLoading ? (
+                    <div className="space-y-4">
+                      {[0, 1, 2, 3].map((index) => (
+                        <Skeleton key={index} className="h-32 w-full rounded-2xl bg-slate-50 border border-slate-100" />
+                      ))}
+                    </div>
+                  ) : filteredAlerts.length === 0 ? (
+                    <div className="py-20 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center animate-in fade-in duration-500">
+                      <div className="text-6xl mb-4">✅</div>
+                      <h3 className="text-xl font-bold text-slate-800">All learners engaged!</h3>
+                      <p className="text-slate-500 text-sm mt-1 max-w-[280px]">No alerts found for the current filter. Everything looks steady.</p>
+                      {activeAlertFilter !== 'all' && (
+                        <Button
+                          variant="outline"
+                          className="mt-6 border-blue-200 text-blue-600 hover:bg-blue-50"
+                          onClick={() => setActiveAlertFilter('all')}
+                        >
+                          Clear Active Filter
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4 pb-20">
+                      {filteredAlerts.map((learner) => {
+                        const directoryIdentity = learnerDirectory.get(learner.userId);
+                        const identity = {
+                          fullName: learner.fullName || directoryIdentity?.fullName || 'Anonymous Learner',
+                          email: learner.email || directoryIdentity?.email
+                        };
+                        const key = (learner.derivedStatus ?? 'unknown') as keyof typeof statusMeta;
+                        const meta = statusMeta[key];
+                        const isActive = selectedLearnerId === learner.userId;
+
+                        // Signal Text Mapping
+                        let signalText = "Needs support";
+                        if (key === 'engaged') signalText = "On track";
+                        else if (key === 'attention_drift') signalText = "Drifting";
+                        else if (key === 'content_friction') signalText = "Stuck on content";
+
+                        let priorityStyles = {
+                          border: '1px solid #E2E8F0',
+                          bg: 'white',
+                          shadow: 'none',
+                          pulse: false,
+                          pillClass: 'bg-slate-100 text-slate-600 border-slate-200'
+                        };
+
+                        if (key === 'content_friction') {
+                          priorityStyles = {
+                            border: '1px solid #FCA5A5',
+                            bg: '#FEF2F2',
+                            shadow: '0 4px 6px -1px rgba(220, 38, 38, 0.1)',
+                            pulse: true,
+                            pillClass: 'bg-red-100 text-red-700 border-red-200'
+                          };
+                        } else if (key === 'attention_drift') {
+                          priorityStyles = {
+                            border: '1px solid #FDBA74',
+                            bg: '#FFF7ED',
+                            shadow: 'none',
+                            pulse: false,
+                            pillClass: 'bg-orange-100 text-orange-700 border-orange-200'
+                          };
+                        } else if (key === 'engaged') {
+                          priorityStyles = {
+                            border: '1px solid #E2E8F0',
+                            bg: 'white',
+                            shadow: 'none',
+                            pulse: false,
+                            pillClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          };
+                        } else if (isActive) {
+                          priorityStyles = {
+                            border: '1px solid #3B82F6',
+                            bg: '#EFF6FF',
+                            shadow: '0 4px 6px -1px rgba(59, 130, 246, 0.1)',
+                            pulse: false,
+                            pillClass: 'bg-blue-100 text-blue-700 border-blue-200'
+                          };
+                        }
+
+                        // Relative time helper
+                        const timeDiff = Math.floor((new Date().getTime() - new Date(learner.createdAt).getTime()) / 60000);
+                        const timeString = timeDiff < 1 ? 'Just now' : timeDiff < 60 ? `${timeDiff}m ago` : `${Math.floor(timeDiff / 60)}h ago`;
+
+                        // Avatar Gradient
+                        const avatarGradients = [
+                          'linear-gradient(135deg, #FF6B6B, #FF8E53)',
+                          'linear-gradient(135deg, #4ECDC4, #44A08D)',
+                          'linear-gradient(135deg, #6C5CE7, #A29BFE)',
+                          'linear-gradient(135deg, #FFA07A, #FFD93D)'
+                        ];
+                        const avatarBg = avatarGradients[Math.abs(learner.userId.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % avatarGradients.length];
+
+                        return (
+                          <motion.div
+                            key={learner.userId}
+                            initial={{ x: -20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            whileHover={{ scale: 1.01 }}
+                            className={`relative flex items-center p-3 rounded-xl border transition-all cursor-pointer group/alert
+                              ${isActive ? 'ring-1 ring-blue-500' : ''}
+                            `}
+                            style={{
+                              backgroundColor: priorityStyles.bg,
+                              borderColor: isActive ? '#3B82F6' : priorityStyles.border.split(' ')[2] || '#E2E8F0',
+                              boxShadow: priorityStyles.shadow
+                            }}
+                            onClick={() => setSelectedLearnerId(learner.userId)}
+                          >
+                            {/* Checkbox */}
+                            <div className="mr-3 flex items-center">
+                              <Checkbox
+                                checked={identity?.email ? alertSelection.selectedEmails.has(identity.email) : false}
+                                onCheckedChange={() => identity?.email && alertSelection.toggleEmailSelection(identity.email)}
+                                onClick={(e) => e.stopPropagation()}
+                                className={`h-4 w-4 rounded-md border-slate-300 data-[state=checked]:bg-[#3B82F6] data-[state=checked]:border-[#3B82F6]
+                                  ${alertSelection.selectedEmails.size > 0 ? 'opacity-100' : 'opacity-0 group-hover/alert:opacity-100'} transition-opacity`}
+                              />
+                            </div>
+
+                            {/* Avatar */}
+                            <div
+                              className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm ring-1 ring-white shrink-0 mr-3"
+                              style={{ background: avatarBg }}
+                            >
+                              {identity.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+
+                            {/* Main Info */}
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-slate-800 text-sm truncate leading-none">
+                                  {identity.fullName}
+                                </h4>
+                                <span className="text-[11px] font-medium text-slate-500 leading-none">
+                                  {signalText}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-[4px] border leading-none ${priorityStyles.pillClass}`}>
+                                  {meta.label}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium leading-none">
+                                  {timeString}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Action */}
+                            {identity?.email && (
+                              <div className="ml-2 opacity-0 group-hover/alert:opacity-100 transition-opacity">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 rounded-full hover:bg-white hover:shadow-sm text-slate-400 hover:text-blue-600"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEmailModal({ email: identity.email!, fullName: identity.fullName });
+                                  }}
+                                >
+                                  <Mail className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Active Indicator Strip */}
+                            {isActive && (
+                              <div className="absolute left-0 top-3 bottom-3 w-1 bg-blue-500 rounded-r-full" />
+                            )}
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* RIGHT PANEL: LEARNER DETAIL (40%) */}
+              <div className="lg:col-span-4 lg:sticky lg:top-24 h-fit">
+                <Card className="border-2 border-slate-100 bg-white text-[#1A202C] shadow-xl rounded-3xl overflow-hidden flex flex-col">
+                  <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-6">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Learner Detail</p>
+                        <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-tight">
+                          {selectedIdentity?.fullName ?? 'Select Learner'}
+                        </h3>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        {selectedLearnerId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full hover:bg-slate-200"
+                            onClick={() => setSelectedLearnerId(null)}
+                          >
+                            <X className="w-4 h-4 text-slate-500" />
+                          </Button>
+                        )}
+                        {selectedLearner && (
+                          <Badge
+                            variant="secondary"
+                            className={`${statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].badgeClass} border font-black text-[10px] px-2.5 py-1`}
+                          >
+                            {statusMeta[(selectedLearner.derivedStatus ?? 'unknown') as keyof typeof statusMeta].label}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="p-6 space-y-8">
+                    {!selectedLearnerId ? (
+                      <div className="flex flex-col items-center justify-center py-24 text-center animate-in fade-in zoom-in duration-500">
+                        <div className="w-20 h-20 rounded-full bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center mb-6">
+                          <Users className="w-10 h-10 text-slate-300" />
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-800">No profile selected</h3>
+                        <p className="text-sm text-slate-500 max-w-[220px] mx-auto mt-2 leading-relaxed">
+                          Click any alert on the left to analyze learner engagement and activity patterns.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-8">
+
+
+                        {/* TIMELINE */}
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
+                            <Activity className="w-3.5 h-3.5" /> Activity Timeline
+                          </p>
+                          <div className="max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                            {historyLoading || historyFetching ? (
+                              <div className="space-y-4">
+                                {[0, 1, 2].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl bg-slate-50" />)}
+                              </div>
+                            ) : sortedHistoryEvents.length === 0 ? (
+                              <div className="bg-slate-50 rounded-2xl p-8 text-center border-2 border-dashed border-slate-200">
+                                <p className="text-sm text-slate-500 font-medium">No history recorded yet.</p>
+                              </div>
+                            ) : (
+                              <div className="relative pl-6 space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-0 before:w-0.5 before:bg-slate-100">
+                                {sortedHistoryEvents.map((event, index) => {
+                                  const meta = statusMeta[(event.derivedStatus ?? 'unknown') as keyof typeof statusMeta];
+                                  const eventLabel = formatEventLabel(event.eventType);
+                                  const reasonLabel = formatStatusReason(event.statusReason);
+                                  return (
+                                    <div key={event.eventId ?? index} className="relative">
+                                      <div
+                                        className={`absolute -left-[27px] top-1.5 h-4 w-4 rounded-full border-4 border-white shadow-sm z-10`}
+                                        style={{ backgroundColor: meta.accentColor }}
+                                      ></div>
+                                      <div className="space-y-1">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-[11px] font-bold text-slate-400">{formatTimestamp(event.createdAt)}</span>
+                                          <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border ${meta.badgeClass} border-transparent`}>
+                                            {meta.label}
+                                          </span>
+                                        </div>
+                                        <h4 className="text-[14px] font-black text-slate-800 leading-tight">{eventLabel}</h4>
+                                        {reasonLabel && <p className="text-[12px] text-slate-500 italic font-medium">"{reasonLabel}"</p>}
+                                        <div className="flex items-center gap-2 pt-1">
+                                          <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                            {(() => {
+                                              const topicMeta = event.topicId ? topicTitleLookup.get(event.topicId) : null;
+                                              return topicMeta ? topicMeta.moduleName ?? `Module ${topicMeta.moduleNo}` : `Module ${event.moduleNo ?? 'n/a'}`;
+                                            })()}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </section>
 
@@ -1311,51 +2039,55 @@ export default function TutorDashboardPage() {
               headers={headers}
             />
 
-            {/* Per-Learner Breakdown */}
+            {/* Individual Learner Stats */}
             <PerLearnerStatsCard
               courseId={selectedCourseId || ''}
               cohortId={selectedCohortId}
               headers={headers}
             />
+
+
           </section>
-        </div>
+        </div >
 
         {/* Persistent AI Copilot Button - Anchored horizontally to white surface, fixed to viewport bottom */}
-        {!isAssistantSheetOpen && (
-          <div className="fixed inset-x-0 bottom-6 z-50 pointer-events-none">
-            <div className="mx-auto max-w-[96%] px-6 sm:px-10 flex justify-end">
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="pointer-events-auto"
-              >
+        {
+          !isAssistantSheetOpen && (
+            <div className="fixed inset-x-0 bottom-6 z-50 pointer-events-none">
+              <div className="mx-auto max-w-[96%] px-6 sm:px-10 flex justify-end">
                 <motion.div
-                  animate={{
-                    boxShadow: [
-                      "0 0 0 0px rgba(16, 185, 129, 0)",
-                      "0 0 0 10px rgba(16, 185, 129, 0.2)",
-                      "0 0 0 0px rgba(16, 185, 129, 0)"
-                    ]
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                  }}
-                  className="rounded-full"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="pointer-events-auto"
                 >
-                  <Button
-                    onClick={() => setIsAssistantSheetOpen(true)}
-                    className="h-12 px-6 rounded-full bg-[#2D3748] hover:bg-[#1A202C] text-white shadow-xl flex items-center gap-2 group transition-all hover:scale-105 active:scale-95"
+                  <motion.div
+                    animate={{
+                      boxShadow: [
+                        "0 0 0 0px rgba(16, 185, 129, 0)",
+                        "0 0 0 10px rgba(16, 185, 129, 0.2)",
+                        "0 0 0 0px rgba(16, 185, 129, 0)"
+                      ]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className="rounded-full"
                   >
-                    <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                    <span className="font-semibold tracking-tight text-sm">AI Copilot</span>
-                  </Button>
+                    <Button
+                      onClick={() => setIsAssistantSheetOpen(true)}
+                      className="h-12 px-6 rounded-full bg-[#2D3748] hover:bg-[#1A202C] text-white shadow-xl flex items-center gap-2 group transition-all hover:scale-105 active:scale-95"
+                    >
+                      <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                      <span className="font-semibold tracking-tight text-sm">AI Copilot</span>
+                    </Button>
+                  </motion.div>
                 </motion.div>
-              </motion.div>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        }
 
         {/* AI Copilot Side Panel (Sheet) */}
         <Sheet open={isAssistantSheetOpen} onOpenChange={setIsAssistantSheetOpen}>
@@ -1549,8 +2281,8 @@ export default function TutorDashboardPage() {
             </form>
           </DialogContent>
         </Dialog>
-      </div>
-    </SiteLayout>
+      </div >
+    </SiteLayout >
   );
 }
 

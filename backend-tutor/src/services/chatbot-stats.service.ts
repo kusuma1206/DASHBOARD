@@ -559,8 +559,12 @@ export async function getPerLearnerStats(
         };
     });
 
-    // Sort by total sessions (most active first)
-    return result.sort((a, b) => b.totalSessions - a.totalSessions);
+    // Sort by most recent activity first
+    return result.sort((a, b) => {
+        const dateA = a.lastActivityAt ? a.lastActivityAt.getTime() : 0;
+        const dateB = b.lastActivityAt ? b.lastActivityAt.getTime() : 0;
+        return dateB - dateA;
+    });
 }
 
 /**

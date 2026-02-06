@@ -1,4 +1,4 @@
-export const DASHBOARD_GRADIENT_BG = '#F4F6F8';
+export const DASHBOARD_GRADIENT_BG = '#F0F7F4';
 
 export const DASHBOARD_CARD_SHADOW = '0 4px 12px rgba(0,0,0,0.05)';
 
