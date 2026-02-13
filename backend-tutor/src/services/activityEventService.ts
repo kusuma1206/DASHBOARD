@@ -22,6 +22,18 @@ export type LearnerStatusRow = {
   derivedStatus: string | null;
   statusReason: string | null;
   createdAt: Date;
+  analysis?: StruggleAnalysis | null;
+};
+
+export type StruggleType = 'No Interest' | 'No Time' | 'Not Engaging' | 'No Understanding' | 'None';
+
+export type StruggleAnalysis = {
+  dominantStruggle: StruggleType;
+  severity: 'Low' | 'Medium' | 'High';
+  scores: Record<StruggleType, number>;
+  contentFriction: boolean;
+  explanation: string;
+  signals: string[];
 };
 
 const VIDEO_EVENT_PREFIXES = ["video.play", "video.resume", "video.buffer.end", "progress.snapshot", "persona.", "notes.", "lesson.", "cold_call.", "tutor.response"];
@@ -135,11 +147,146 @@ export async function getLatestStatusesForCourse(courseId: string, cohortId?: st
   grouped.forEach((events) => {
     const summary = deriveStatusFromEvents(events);
     if (summary) {
+      // Perform runtime struggle analysis
+      summary.analysis = analyzeStruggle(events);
       summaries.push(summary);
     }
   });
 
   return summaries;
+}
+
+/**
+ * Redesigned Struggle Analysis Logic (Runtime Only)
+ * Computes scores for 4 struggle types based on existing telemetry events.
+ */
+export function analyzeStruggle(events: LearnerStatusRow[]): StruggleAnalysis {
+  const scores: Record<StruggleType, number> = {
+    'No Interest': 0,
+    'No Time': 0,
+    'Not Engaging': 0,
+    'No Understanding': 0,
+    'None': 0,
+  };
+
+  if (events.length === 0) {
+    return {
+      dominantStruggle: 'None',
+      severity: 'Low',
+      scores,
+      contentFriction: false,
+      explanation: 'No activity recorded yet.',
+      signals: [],
+    };
+  }
+
+  const sortedEvents = [...events].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const now = new Date();
+  const signals: string[] = [];
+
+  // 1. SIGNAL DERIVATION
+  
+  // Quiz failures and retries
+  const quizFailures = events.filter(e => e.eventType === 'quiz.fail').length;
+  const quizRetries = events.filter(e => e.eventType === 'quiz.retry').length;
+  if (quizFailures > 2) signals.push(`Multiple quiz failures (${quizFailures})`);
+  if (quizRetries > 3) signals.push(`Frequent retries (${quizRetries})`);
+
+  // Idle and Session patterns
+  const idleEvents = events.filter(e => e.eventType.startsWith('idle.'));
+  const idleRatio = idleEvents.length / Math.max(1, events.length);
+  if (idleRatio > 0.4) signals.push('High idle ratio detected');
+
+  // Video engagement
+  const videoPlays = events.filter(e => e.eventType === 'video.play').length;
+  const videoEnds = events.filter(e => e.eventType === 'video.end').length;
+  const videoPauses = events.filter(e => e.eventType === 'video.pause').length;
+  if (videoPlays > 0 && videoEnds === 0) signals.push('Videos started but not finished');
+  if (videoPauses > 5) signals.push('Frequent video pausing');
+
+  // Tutor interactions
+  const tutorPrompts = events.filter(e => e.eventType === 'tutor.prompt').length;
+  if (tutorPrompts > 5) signals.push('High help-seeking intensity');
+
+  // Session fragmentation
+  const sessionStarts = events.filter(e => e.eventType === 'session.start').length;
+  if (sessionStarts > 3) signals.push('Fragmented session pattern');
+
+  // 2. SCORING MODEL (WEIGHTS)
+  
+  // No Understanding (Cognitive Friction)
+  scores['No Understanding'] += quizFailures * 25;
+  scores['No Understanding'] += quizRetries * 10;
+  scores['No Understanding'] += tutorPrompts * 5;
+  if (scores['No Understanding'] > 100) scores['No Understanding'] = 100;
+
+  // Not Engaging (Content/System Failure)
+  scores['Not Engaging'] += videoPauses * 15;
+  if (videoPlays > 0 && videoEnds === 0) scores['Not Engaging'] += 30;
+  if (scores['Not Engaging'] > 100) scores['Not Engaging'] = 100;
+
+  // No Interest (Motivation)
+  scores['No Interest'] += idleRatio * 80;
+  if (quizFailures > 0 && quizRetries === 0) scores['No Interest'] += 20; // Fails but doesn't try again
+  if (scores['No Interest'] > 100) scores['No Interest'] = 100;
+
+  // No Time (External Constraint)
+  scores['No Time'] += sessionStarts * 20;
+  if (scores['No Time'] > 100) scores['No Time'] = 100;
+
+  // 3. DECAY LOGIC (Time-based)
+  const latestEventAt = sortedEvents[0].createdAt.getTime();
+  const hoursSinceLastActivity = (now.getTime() - latestEventAt) / (1000 * 60 * 60);
+
+  // Apply decay to all scores based on inactivity
+  // No Interest decays faster after activity, No Understanding stays longer
+  (Object.keys(scores) as StruggleType[]).forEach(key => {
+    if (key === 'None') return;
+    const decayRate = key === 'No Understanding' ? 0.01 : 0.05; // Understanding persists longer
+    scores[key] = Math.max(0, scores[key] * Math.pow(1 - decayRate, hoursSinceLastActivity));
+  });
+
+  // 4. DOMINANT STRUGGLE & SEVERITY
+  let maxScore = 0;
+  let dominant: StruggleType = 'None';
+
+  (Object.keys(scores) as StruggleType[]).forEach(key => {
+    if (key === 'None') return;
+    if (scores[key] > maxScore) {
+      maxScore = scores[key];
+      dominant = key;
+    }
+  });
+
+  // Handle ties or low confidence
+  if (maxScore < 15) {
+    dominant = 'None';
+  }
+
+  let severity: 'Low' | 'Medium' | 'High' = 'Low';
+  if (maxScore > 70) severity = 'High';
+  else if (maxScore > 30) severity = 'Medium';
+
+  // 5. CONTENT FRICTION REDEFINITION
+  const contentFriction = dominant === 'No Understanding' || dominant === 'Not Engaging';
+
+  // 6. HUMAN-READABLE EXPLANATION
+  const explanations: Record<StruggleType, string> = {
+    'No Understanding': 'Learner is actively trying but failing assessments or seeking excessive help, indicating cognitive friction.',
+    'Not Engaging': 'Learner shows signs of boredom or system frustration through frequent pauses and incomplete videos.',
+    'No Interest': 'Low engagement and high idle time suggest a lack of motivation or disconnection from the module.',
+    'No Time': 'Fragmented session patterns suggest external constraints are preventing focused study.',
+    'None': 'No significant struggle patterns detected.',
+  };
+
+  return {
+    dominantStruggle: dominant,
+    severity,
+    scores,
+    contentFriction,
+    explanation: explanations[dominant],
+    signals,
+  };
 }
 
 export async function getLearnerHistory(params: {

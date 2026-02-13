@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { differenceInDays } from "date-fns";
 import { prisma } from "./prisma";
+import { StruggleAnalysis, analyzeStruggle, getLatestStatusesForCourse } from "./activityEventService";
 
 export type TutorLearnerSnapshot = {
   userId: string;
@@ -13,6 +14,7 @@ export type TutorLearnerSnapshot = {
   lastActivity?: Date | null;
   cohortName?: string;
   recentTelemetry?: { type: string; reason: string; at: Date }[];
+  analysis?: StruggleAnalysis | null;
 };
 
 export type CohortSummary = {
@@ -154,6 +156,38 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
     telemetryByUser.set(uid, list);
   });
 
+  // Fetch FULL event windows for accurate struggle analysis (Top 50 per user)
+  const expandedTelemetryRows = await prisma.$queryRaw<
+    { user_id: string; event_id: string; course_id: string; module_no: number | null; topic_id: string | null; event_type: string; derived_status: string | null; status_reason: string | null; created_at: Date }[]
+  >(Prisma.sql`
+    SELECT user_id, event_id, course_id, module_no, topic_id, event_type, derived_status, status_reason, created_at
+    FROM (
+      SELECT user_id, event_id, course_id, module_no, topic_id, event_type, derived_status, status_reason, created_at,
+             ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rn
+      FROM learner_activity_events
+      WHERE course_id = ${courseId}::uuid
+    ) tmp
+    WHERE rn <= 50
+  `);
+
+  const eventsByUser = new Map<string, any[]>();
+  expandedTelemetryRows.forEach((row) => {
+    const uid = String(row.user_id);
+    const list = eventsByUser.get(uid) ?? [];
+    list.push({
+      eventId: row.event_id,
+      userId: row.user_id,
+      courseId: row.course_id,
+      moduleNo: row.module_no,
+      topicId: row.topic_id,
+      eventType: row.event_type,
+      derivedStatus: row.derived_status,
+      statusReason: row.status_reason,
+      createdAt: row.created_at
+    });
+    eventsByUser.set(uid, list);
+  });
+
   // Build learner snapshots for ALL cohorts
   const allCohortLearners = new Map<string, TutorLearnerSnapshot[]>();
 
@@ -183,6 +217,7 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
         lastActivity: progress?.lastActivity ?? member.addedAt,
         cohortName: cohort.name,
         recentTelemetry: telemetryByUser.get(String(member.userId || "")) || [],
+        analysis: member.userId ? analyzeStruggle(eventsByUser.get(String(member.userId)) || []) : null,
       };
     });
 
@@ -255,6 +290,7 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
           percent,
           lastActivity: progress?.lastActivity ?? enrollment.enrolledAt,
           recentTelemetry: telemetryByUser.get(String(enrollment.userId)) || [],
+          analysis: analyzeStruggle(eventsByUser.get(String(enrollment.userId)) || []),
         };
       });
     }
@@ -275,6 +311,7 @@ export async function buildTutorCourseSnapshot(courseId: string, cohortId?: stri
         percent,
         lastActivity: progress?.lastActivity ?? enrollment.enrolledAt,
         recentTelemetry: telemetryByUser.get(String(enrollment.userId)) || [],
+        analysis: analyzeStruggle(eventsByUser.get(String(enrollment.userId)) || []),
       };
     });
   }
@@ -363,9 +400,14 @@ export function formatTutorSnapshot(snapshot: TutorCourseSnapshot): string {
         ? ` signals="${(learner as any).recentTelemetry.map((t: any) => `${t.reason}`).join(" | ")}"`
         : " signals=\"none\"";
 
+      const analysis = (learner as any).analysis;
+      const struggleStr = analysis && analysis.dominantStruggle !== 'None'
+        ? ` struggle="${analysis.dominantStruggle}" severity="${analysis.severity}" explanation="${analysis.explanation}" content_friction=${analysis.contentFriction}`
+        : " struggle=\"None\"";
+
       // Add ranking number to make it crystal clear for the AI
       const rank = index + 1;
-      return `[RECORD #${rank}] name="${learner.fullName}" email="${learner.email}"${cohortInfo} progress="${learner.percent}%" count="${learner.completedModules}/${learner.totalModules}" enrolled="${enrolled}" last_active="${lastActivity}"${telemetry}`;
+      return `[RECORD #${rank}] name="${learner.fullName}" email="${learner.email}"${cohortInfo} progress="${learner.percent}%" count="${learner.completedModules}/${learner.totalModules}" enrolled="${enrolled}" last_active="${lastActivity}"${telemetry}${struggleStr}`;
     })
     .join("\n");
 
