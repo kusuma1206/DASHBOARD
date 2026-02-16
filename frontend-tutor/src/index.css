@@ -626,6 +626,29 @@
     transform: scaleX(1);
   }
 
+  /* Premium Highlight Styles */
+  .highlight-premium {
+    position: relative;
+    display: inline-block;
+    color: #FDFCF0;
+    padding: 0 0.4em;
+    margin: 0 -0.1em;
+    z-index: 1;
+    white-space: nowrap;
+  }
+
+  .highlight-premium::after {
+    content: "";
+    position: absolute;
+    top: 5%;
+    left: 0;
+    width: 100%;
+    height: 95%;
+    background: #B24531;
+    transform: skewX(-12deg);
+    z-index: -1;
+  }
+
   /* ===== SVG ANIMATED BUTTON ===== */
   :root {
     --btn-length: 680px;
@@ -775,7 +798,39 @@
     /* Using --img variable for background */
     background: var(--img) center / cover no-repeat;
     border: 2px solid rgba(255, 255, 255, 0.25);
-    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 0 15px rgba(178, 69, 49, 0.2);
+  }
+
+  .will-change-transform {
+    will-change: transform;
+  }
+
+  .optimize-gpu {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000;
+    will-change: transform;
+  }
+
+  /* Lenis Smooth Scroll Core */
+  html.lenis {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto;
+  }
+
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+
+  .lenis.lenis-scrolling iframe {
+    pointer-events: none;
   }
 
   /* Text Layer */

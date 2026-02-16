@@ -5,24 +5,29 @@ import {
   Video,
   Globe,
   ArrowRight,
-  Sparkles,
-  Loader2,
   CheckCircle2,
-  Lightbulb,
-  PenTool,
-  Rocket,
   X,
   ShieldCheck,
   TrendingUp,
   Brain,
   Layout,
   MessageSquare,
-  ChevronRight
+  ChevronRight,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion';
 import { buildApiUrl } from "@/lib/api";
 import { writeStoredSession, resetSessionHeartbeat } from '@/utils/session';
 import type { StoredSession } from '@/types/session';
+import FloatingCampusHero from '@/components/layout/FloatingCampusHero';
+import WaveGallery from '@/components/layout/WaveGallery';
+import FeatureGrid from '@/components/layout/FeatureGrid';
+import TutorNavbar from '@/components/layout/TutorNavbar';
+import TutorFooter from '@/components/layout/TutorFooter';
+import { Timeline } from '@/components/ui/timeline';
+import Lenis from 'lenis';
+import 'lenis/dist/lenis.css';
 
 // --- 1. TYPES & INTERFACES ---
 interface TutorApplication {
@@ -40,13 +45,13 @@ interface TutorApplication {
 
 // --- 2. Description helper (client-safe template) ---
 const THEME = {
-  bg: '#FDFCF0',      // Warm Ivory
+  bg: '#FDFCF0',      // Warm Ivory (Base)
   primary: '#B24531', // Deep Burnt Orange
   accent: '#E64833',  // Coral Highlights
   text: '#1E3A47',    // Warm Charcoal
   muted: '#1E3A47/60',
   card: '#FFFFFF',
-  secondaryBg: '#F7F3E3' // Subtle layered section bg
+  secondaryBg: '#FFF5EC' // Soft Peach Overlay
 };
 
 // --- DESCRIPTION HELPER ---
@@ -66,20 +71,17 @@ const generateCourseDescription = async (
 };
 
 const GrainOverlay = () => (
-  <div className="fixed inset-0 pointer-events-none z-[100] opacity-[0.035]" style={{ mixBlendMode: 'multiply' }}>
-    <svg width="100%" height="100%">
-      <filter id="grain">
-        <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
-        <feColorMatrix type="saturate" values="0" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#grain)" />
-    </svg>
-  </div>
+  <div className="fixed inset-0 pointer-events-none z-[100] opacity-[0.035] optimize-gpu"
+    style={{
+      backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3F%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+      mixBlendMode: 'multiply'
+    }}
+  />
 );
 
 
-const SectionHeader = ({ badge, title, subline, light = false }: { badge?: string; title: string; subline?: string; light?: boolean }) => (
-  <div className="mb-8 text-center max-w-3xl mx-auto">
+const SectionHeader = ({ badge, title, subline, light = false }: { badge?: string; title: React.ReactNode; subline?: string; light?: boolean }) => (
+  <div className="mb-4 text-center max-w-3xl mx-auto">
     {badge && (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -104,7 +106,7 @@ const SectionHeader = ({ badge, title, subline, light = false }: { badge?: strin
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ delay: 0.1 }}
-        className={`text-lg font-medium max-w-2xl mx-auto ${light ? 'text-white/60' : 'text-[#1E3A47]/60'}`}
+        className={`text-base md:text-lg font-medium max-w-2xl mx-auto leading-relaxed ${light ? 'text-white/60' : 'text-[#1E3A47]/60'}`}
       >
         {subline}
       </motion.p>
@@ -112,128 +114,9 @@ const SectionHeader = ({ badge, title, subline, light = false }: { badge?: strin
   </div>
 );
 
-const CapabilityCard = ({ title, desc, mockup, badge }: { title: string; desc: string; mockup: React.ReactNode; badge: string }) => (
-  <motion.div
-    whileHover={{ y: -10, scale: 1.02 }}
-    className="w-[380px] h-[480px] shrink-0 bg-white/60 backdrop-blur-xl border border-white shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col group transition-all duration-500"
-  >
-    {/* Mini UI Preview Area */}
-    <div className="h-[240px] relative overflow-hidden bg-slate-50/50 flex items-center justify-center p-6 border-b border-slate-100">
-      <div className="absolute inset-0 bg-gradient-to-br from-[#B24531]/5 to-transparent opacity-50" />
-      <div className="relative z-10 w-full transform group-hover:scale-105 transition-transform duration-700">
-        {mockup}
-      </div>
-    </div>
-
-    {/* Content Area */}
-    <div className="p-8 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="px-3 py-1 rounded-full bg-[#B24531]/5 text-[#B24531] text-[10px] font-black uppercase tracking-widest border border-[#B24531]/10">
-          {badge}
-        </div>
-      </div>
-      <h4 className="text-xl font-bold text-[#1E3A47] group-hover:text-[#B24531] transition-colors">{title}</h4>
-      <p className="text-sm text-[#1E3A47]/60 font-medium leading-relaxed">
-        {desc}
-      </p>
-    </div>
-  </motion.div>
-);
-
-const MiniCourseBuilder = () => (
-  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-    <div className="h-6 bg-slate-50 border-b border-slate-100 px-3 flex items-center gap-1.5">
-      <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-      <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-      <div className="h-2 w-16 bg-slate-200 rounded" />
-    </div>
-    <div className="p-3 space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-orange-50 flex items-center justify-center text-[#B24531] text-[8px] font-bold">01</div>
-        <div className="h-1.5 w-24 bg-slate-100 rounded" />
-      </div>
-      <div className="flex items-center gap-2 ml-8">
-        <div className="w-4 h-4 rounded-full bg-[#B24531]/10" />
-        <div className="h-1.5 w-16 bg-slate-50 rounded" />
-      </div>
-    </div>
-  </div>
-);
-
-const MiniEarnings = () => (
-  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
-    <div className="flex justify-between items-start">
-      <div className="text-[10px] font-black text-[#1E3A47]/40 uppercase">Split</div>
-      <div className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[8px] font-bold">80% Share</div>
-    </div>
-    <div className="flex items-end gap-1 h-12">
-      {[30, 60, 45, 80, 55, 90, 70, 100].map((h, i) => (
-        <div key={i} className="flex-1 bg-[#B24531]/20 rounded-t-xs" style={{ height: `${h}%` }} />
-      ))}
-    </div>
-    <div className="text-lg font-black text-[#1E3A47] tracking-tight">$4,290</div>
-  </div>
-);
-
-const MiniAI = () => (
-  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-    <div className="flex gap-2">
-      <div className="w-5 h-5 shrink-0 rounded-full bg-[#1E3A47] flex items-center justify-center text-white"><Sparkles size={10} /></div>
-      <div className="space-y-1.5 flex-1">
-        <div className="h-1.5 w-full bg-slate-100 rounded" />
-        <div className="h-1.5 w-2/3 bg-slate-100 rounded" />
-      </div>
-    </div>
-    <div className="pl-7">
-      <div className="px-3 py-1.5 bg-slate-50 border border-[#B24531]/20 rounded-lg text-[8px] font-bold text-[#B24531] flex justify-between items-center group-hover:bg-[#B24531]/5 transition-colors">
-        Suggest follow-up
-        <ArrowRight size={8} />
-      </div>
-    </div>
-  </div>
-);
-
-const MiniAnalytics = () => (
-  <div className="w-full h-32 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex gap-4 items-center">
-    <div className="w-16 h-16 rounded-full border-4 border-slate-100 border-t-[#B24531] flex items-center justify-center relative">
-      <span className="text-[10px] font-black text-[#1E3A47]">84%</span>
-    </div>
-    <div className="flex-1 space-y-2">
-      <div className="space-y-1">
-        <div className="flex justify-between text-[8px] font-black text-slate-400">
-          <span>Active</span>
-          <span className="text-emerald-500">+12%</span>
-        </div>
-        <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-          <div className="h-full w-2/3 bg-[#B24531]" />
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const CapabilityMarquee = ({ items, reverse = false }: { items: any[]; reverse?: boolean }) => {
-  return (
-    <div className="flex overflow-hidden relative">
-      <motion.div
-        animate={{ x: reverse ? ["-50%", "0%"] : ["0%", "-50%"] }}
-        transition={{
-          duration: 35,
-          repeat: Infinity,
-          ease: "linear",
-        }}
-        className="flex gap-8 py-8 px-4"
-      >
-        {[...items, ...items].map((item, idx) => (
-          <CapabilityCard key={idx} {...item} />
-        ))}
-      </motion.div>
-    </div>
-  );
-};
 
 const FloatingShapes = () => (
-  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+  <div className="absolute inset-0 pointer-events-none overflow-hidden optimize-gpu">
     <motion.div
       animate={{
         y: [0, -20, 0],
@@ -241,7 +124,7 @@ const FloatingShapes = () => (
         opacity: [0.03, 0.06, 0.03],
       }}
       transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-      className="absolute top-[20%] left-[10%] w-[400px] h-[400px] rounded-full bg-gradient-to-tr from-[#B24531] to-transparent blur-[120px]"
+      className="absolute top-[20%] left-[10%] w-[400px] h-[400px] rounded-full bg-gradient-to-tr from-[#B24531] to-transparent blur-[80px] will-change-transform"
     />
     <motion.div
       animate={{
@@ -250,7 +133,7 @@ const FloatingShapes = () => (
         opacity: [0.02, 0.05, 0.02],
       }}
       transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-      className="absolute bottom-[20%] right-[5%] w-[500px] h-[500px] rounded-full bg-gradient-to-bl from-[#1E3A47] to-transparent blur-[130px]"
+      className="absolute bottom-[20%] right-[5%] w-[500px] h-[500px] rounded-full bg-gradient-to-bl from-[#1E3A47] to-transparent blur-[100px] will-change-transform"
     />
   </div>
 );
@@ -258,81 +141,6 @@ const FloatingShapes = () => (
 
 
 
-const JourneyStep = ({ id, title, desc, icon: Icon, isLast }: { id: string; title: string; desc: string; icon: any; isLast: boolean }) => {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, amount: 0.2 });
-
-  return (
-    <div ref={ref} className="relative flex-1 flex flex-col items-center">
-      {/* Connecting Line (Desktop) */}
-      {!isLast && (
-        <div className="hidden lg:block absolute top-[40px] left-[calc(50%+40px)] right-[calc(-50%+40px)] h-[2px] bg-slate-100/50 z-0">
-          <motion.div
-            initial={{ width: 0 }}
-            whileInView={{ width: "100%" }}
-            viewport={{ once: true }}
-            transition={{ duration: 1.5, delay: 0.5, ease: "easeInOut" }}
-            className="h-full bg-gradient-to-r from-[#B24531]/40 to-[#B24531]/10 relative"
-          >
-            <motion.div
-              animate={{ left: ["0%", "100%"], opacity: [0, 1, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-              className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#B24531] blur-[2px] shadow-[0_0_8px_rgba(178,69,49,0.8)]"
-            />
-          </motion.div>
-        </div>
-      )}
-
-      <motion.div
-        initial={{ opacity: 0, y: 30 }}
-        animate={isInView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: parseInt(id) * 0.2 }}
-        className="relative z-10 w-full flex flex-col items-center h-full"
-      >
-        {/* Step Badge with Glow */}
-        <div className="relative mb-8 shrink-0">
-          <motion.div
-            animate={{
-              boxShadow: ["0 0 0 0px rgba(178, 69, 49, 0)", "0 0 0 12px rgba(178, 69, 49, 0.03)", "0 0 0 0px rgba(178, 69, 49, 0)"]
-            }}
-            whileHover={{
-              boxShadow: "0 0 0 15px rgba(178, 69, 49, 0.1)",
-              scale: 1.05
-            }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="w-20 h-20 rounded-full bg-white border-2 border-slate-100 flex items-center justify-center shadow-lg relative z-10 transition-all duration-300"
-          >
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-[#1E3A47] to-[#B24531]">
-              {id}
-            </span>
-          </motion.div>
-          <motion.div
-            whileHover={{ rotate: 5, scale: 1.1 }}
-            className="absolute -top-4 -right-4 w-12 h-12 rounded-2xl bg-[#B24531]/5 flex items-center justify-center text-[#B24531] shadow-sm z-20 transition-transform duration-300"
-          >
-            <Icon size={20} className="group-hover:animate-pulse" />
-          </motion.div>
-        </div>
-
-        {/* Card */}
-        <motion.div
-          whileHover={{ y: -8 }}
-          className="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm hover:shadow-xl hover:border-[#B24531]/10 transition-all duration-500 text-center w-full max-w-sm group flex-1 flex flex-col cursor-default"
-        >
-          <div className="pt-2">
-            <h4 className="text-2xl font-bold text-[#1E3A47] mb-6 group-hover:text-[#B24531] transition-colors">{title}</h4>
-          </div>
-          <div className="flex-1 flex flex-col">
-            <p className="text-[#1E3A47]/60 font-medium leading-relaxed text-base">
-              {desc}
-            </p>
-            <div className="flex-1 min-h-[2rem]" /> {/* Flexible empty space */}
-          </div>
-        </motion.div>
-      </motion.div>
-    </div>
-  );
-};
 
 // --- REVEAL VARIANTS ---
 const revealVariants = {
@@ -348,6 +156,33 @@ const revealVariants = {
 };
 
 // --- 4. MAIN COMPONENT ---
+const timelineData = [
+  {
+    badge: "STEP 01",
+    title: "Submit Your Vision",
+    description: "Validate real learner demand using platform insights and data signals. Start with a simple course proposal.",
+    image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?q=80&w=2070&auto=format&fit=crop"
+  },
+  {
+    badge: "STEP 02",
+    title: "Design Your Syllabus",
+    description: "Co-create your curriculum with AI-powered guidance and expert feedback to ensure high engagement and retention.",
+    image: "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?q=80&w=2070&auto=format&fit=crop"
+  },
+  {
+    badge: "STEP 03",
+    title: "Onboarding & QA",
+    description: "Go through our streamlined quality verification to ensure your content meets the platform's premium standards.",
+    image: "https://images.unsplash.com/photo-1515187029135-18ee286d815b?q=80&w=2070&auto=format&fit=crop"
+  },
+  {
+    badge: "STEP 04",
+    title: "Launch & Monetize",
+    description: "Go live and start earning. Track your performance with real-time analytics and automated student feedback loops.",
+    image: "https://images.unsplash.com/photo-1553729459-efe14ef6055d?q=80&w=2070&auto=format&fit=crop"
+  }
+];
+
 const initialFormState: TutorApplication = {
   fullName: "",
   email: "",
@@ -374,6 +209,33 @@ const BecomeTutor: React.FC = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [activeItem, setActiveItem] = useState<number | null>(null);
+  const lenisRef = useRef<Lenis | null>(null);
+
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 1,
+      touchMultiplier: 2,
+      infinite: false,
+    });
+
+    lenisRef.current = lenis;
+
+    function raf(time: number) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+
+    requestAnimationFrame(raf);
+
+    return () => {
+      lenis.destroy();
+    };
+  }, []);
 
   // Typewriter state
   const fullText = "Your knowledge can change a career.";
@@ -420,44 +282,6 @@ const BecomeTutor: React.FC = () => {
     return () => observerRef.current?.disconnect();
   }, []);
 
-  // --- Scrollytelling Logic for How It Works ---
-  const howItWorksRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress: howItWorksScroll } = useScroll({
-    target: howItWorksRef,
-    offset: ["start start", "end end"]
-  });
-
-  // Circle Scaling
-  const circleScale = useTransform(howItWorksScroll, [0, 0.25], [0, 35]);
-
-  // Step Opacities
-  const step1Opacity = useTransform(howItWorksScroll, [0.25, 0.35, 0.45, 0.5], [0, 1, 1, 0]);
-  const step2Opacity = useTransform(howItWorksScroll, [0.5, 0.6, 0.7, 0.8], [0, 1, 1, 0]);
-  const step3Opacity = useTransform(howItWorksScroll, [0.8, 0.85, 0.95, 1], [0, 1, 1, 1]);
-
-  const steps = [
-    {
-      id: "01",
-      title: "Submit Idea",
-      desc: "Tell us about your expertise and proposed topic.",
-      icon: <Lightbulb size={64} className="text-[#E5583E]" />,
-      opacity: step1Opacity
-    },
-    {
-      id: "02",
-      title: "Design Syllabus",
-      desc: "Collaborate with our curriculum experts and AI-powered guidance.",
-      icon: <PenTool size={64} className="text-[#E5583E]" />,
-      opacity: step2Opacity
-    },
-    {
-      id: "03",
-      title: "Launch & Earn",
-      desc: "Go live on the platform. Track analytics and get paid.",
-      icon: <Rocket size={64} className="text-[#E5583E]" />,
-      opacity: step3Opacity
-    }
-  ];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -583,297 +407,203 @@ const BecomeTutor: React.FC = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#FDFCF0] text-[#1E3A47] overflow-x-hidden font-sans">
+    <div className="w-full min-h-screen bg-gradient-to-b from-[#FFC48C] via-[#FFF5EC] to-[#FFF5EC] text-[#1E3A47] overflow-x-hidden font-sans">
       <GrainOverlay />
 
+      <TutorNavbar
+        onApply={() => document.getElementById('apply')?.scrollIntoView({ behavior: 'smooth' })}
+        onLogin={openLoginModal}
+      />
+
       {/* Hero Section */}
+      <FloatingCampusHero
+        onApply={() => document.getElementById('apply-form')?.scrollIntoView({ behavior: 'smooth' })}
+        onLogin={openLoginModal}
+      />
+
       <motion.section
+        id="gap"
         initial="hidden"
         whileInView="visible"
-        viewport={{ once: true, amount: 0.1 }}
-        variants={revealVariants}
-        className="relative flex items-center justify-center pt-20 pb-4 px-6 md:px-12 overflow-hidden"
+        viewport={{ once: true }}
+        className="scroll-mt-24"
       >
-        {/* Ambient Hero Background with subtle animation */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1400px] h-full pointer-events-none">
-          <motion.div
-            animate={{
-              scale: [1, 1.1, 1],
-              opacity: [0.3, 0.4, 0.3],
-            }}
-            transition={{
-              duration: 8,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-            className="absolute top-[-5%] left-[20%] w-[60%] h-[70%] rounded-full bg-slate-100/30 blur-[120px]"
-          />
-          <motion.div
-            animate={{
-              scale: [1, 1.2, 1],
-              opacity: [0.2, 0.3, 0.2],
-            }}
-            transition={{
-              duration: 10,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: 1
-            }}
-            className="absolute bottom-5 right-[10%] w-[40%] h-[50%] rounded-full bg-slate-50/20 blur-[100px]"
-          />
-        </div>
-
-        <div className="max-w-[1400px] mx-auto text-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] bg-white text-slate-500 border border-slate-200 shadow-sm"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            New Cohort 2026
-          </motion.div>
-
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#1E3A47] tracking-tight mb-4 leading-[1.2] max-w-4xl mx-auto drop-shadow-sm py-2"
-            style={{ letterSpacing: "-0.02em" }}
-          >
-            {typedText}
-          </motion.h1>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-8"
-          >
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.8, ease: "easeOut" }}
-              className="text-base md:text-lg text-slate-500/80 font-normal max-w-2xl mx-auto leading-relaxed"
-            >
-              Built with AI-powered tools, transparent earnings, and full creator control.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4"
-            >
-              <motion.button
-                whileHover={{ y: -4, scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => document.getElementById('apply-form')?.scrollIntoView({ behavior: 'smooth' })}
-                className="group relative w-full sm:w-auto px-8 py-4 bg-[#B24531] text-white font-semibold text-sm rounded-xl shadow-xl shadow-[#B24531]/20 overflow-hidden transition-all duration-300"
-              >
-                <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 group-hover:translate-x-full transition-transform duration-1000 -translate-x-full" />
-                <span className="relative">Apply as Tutor</span>
-              </motion.button>
-
-              <motion.button
-                whileHover={{ y: -4, backgroundColor: 'rgba(30, 58, 71, 0.05)', scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={openLoginModal}
-                className="w-full sm:w-auto px-8 py-4 border border-slate-200 bg-white/50 backdrop-blur-sm text-[#1E3A47] font-semibold text-sm rounded-xl transition-all duration-300 shadow-sm"
-              >
-                Tutor Login
-              </motion.button>
-            </motion.div>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="text-sm text-[#1E3A47]/40 font-bold tracking-[0.2em] uppercase flex items-center justify-center gap-4"
-            >
-              <span className="w-8 h-[1px] bg-[#1E3A47]/20" />
-              No upfront costs. No exclusivity. You stay in control.
-              <span className="w-8 h-[1px] bg-[#1E3A47]/20" />
-            </motion.p>
-          </motion.div>
-        </div>
+        <WaveGallery />
       </motion.section>
 
-      {/* Why Teach Section - Live Capability Feed Marquee */}
+      <div className="relative h-40 w-full -mt-20 mb-[-1px] z-20 pointer-events-none overflow-hidden">
+        {/* Layered Liquid Waves */}
+        <svg viewBox="0 0 1440 120" className="absolute bottom-[-1px] w-full h-full" preserveAspectRatio="none">
+          {/* Layer 1: Semi-transparent Deep Peach */}
+          <path
+            d="M0,60 C480,120 960,0 1440,60 L1440,120 L0,120 Z"
+            fill="#FFC48C"
+            fillOpacity="0.4"
+          />
+          {/* Layer 2: Softer Peach-Ivory blend */}
+          <path
+            d="M0,80 C360,20 1080,140 1440,80 L1440,120 L0,120 Z"
+            fill="#FFF5EC"
+            fillOpacity="0.6"
+          />
+          {/* Layer 3: Solid Bottom Wave (The floor) */}
+          <path
+            d="M0,100 C480,150 960,50 1440,100 L1440,120 L0,120 Z"
+            fill="#FFF5EC"
+          />
+        </svg>
+      </div>
+
+
       <motion.section
+        id="ecosystem"
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.1 }}
         variants={revealVariants}
-        className="pt-12 pb-4 bg-[#FDFCF0] relative overflow-hidden"
+        className="pt-2 pb-0 relative overflow-hidden scroll-mt-24"
       >
+        <FloatingShapes />
         {/* Background Atmosphere */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-0 opacity-[0.03]"
+          {/* Subtle Eco-Grid Pattern */}
+          <div className="absolute inset-0 opacity-[0.05]"
             style={{
-              backgroundImage: 'linear-gradient(#1E3A47 1px, transparent 1px), linear-gradient(90deg, #1E3A47 1px, transparent 1px)',
-              backgroundSize: '100px 100px',
-              maskImage: 'radial-gradient(circle at center, black, transparent 80%)'
+              backgroundImage: 'radial-gradient(#1E3A47 0.5px, transparent 0.5px)',
+              backgroundSize: '30px 30px',
+              maskImage: 'linear-gradient(to bottom, black, transparent)'
             }} />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-orange-100/20 blur-[130px] rounded-full" />
+
+          {/* Layered Atmospheric Glows (Blobs) */}
+          <div className="absolute top-[10%] right-[-10%] w-[800px] h-[800px] bg-orange-300/30 blur-[150px] rounded-full animate-pulse" style={{ animationDuration: '8s' }} />
+          <div className="absolute bottom-[20%] left-[-15%] w-[700px] h-[700px] bg-amber-200/40 blur-[120px] rounded-full" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-orange-100/20 blur-[160px] rounded-full" />
         </div>
 
         <div className="max-w-[1400px] mx-auto px-6 md:px-12 relative z-10 mb-0">
           <SectionHeader
             badge="ECOSYSTEM READY"
-            title="Why teach with us?"
+            title={
+              <>
+                Why <span className="highlight-premium">teach</span> with us?
+              </>
+            }
             subline="Experience a living platform that works as hard as you do."
           />
         </div>
 
-        {/* The Live Capability Rails */}
-        <div className="relative space-y-4 pb-8 pt-2">
-          {/* Rail 1: Forward */}
-          <CapabilityMarquee
-            items={[
-              {
-                title: "Create or Delegate",
-                badge: "Builder",
-                mockup: <MiniCourseBuilder />,
-                desc: "Design and own your content end-to-end. If you request our team to create content for you, this service is chargeable."
-              },
-              {
-                title: "Earn Transparently",
-                badge: "Payouts",
-                mockup: <MiniEarnings />,
-                desc: "Earn through a revenue split based on course performance. 80/20 split with your APIs, 70/30 with platform APIs."
-              },
-              {
-                title: "Grow With AI",
-                badge: "Intelligence",
-                mockup: <MiniAI />,
-                desc: "AI-assisted follow-up messaging that helps tutors communicate clearly and professionally with students."
-              },
-              {
-                title: "Track Everything",
-                badge: "Metrics",
-                mockup: <MiniAnalytics />,
-                desc: "Monitor enrollments, engagement, payouts, and learner follow-ups in real time."
-              }
-            ]}
-          />
-
-          {/* Horizontal Gradient Overlays */}
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-gradient-to-r from-[#FDFCF0] to-transparent z-20 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-64 bg-gradient-to-l from-[#FDFCF0] to-transparent z-20 pointer-events-none" />
+        {/* Feature Grid Section */}
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 relative z-10 pb-2">
+          <FeatureGrid />
         </div>
 
       </motion.section>
 
+      <div className="relative h-24 w-full -mt-12 mb-[-1px] z-20 pointer-events-none overflow-hidden">
+        {/* Layered Liquid Waves - FeatureGrid Transition */}
+        <svg viewBox="0 0 1440 120" className="absolute bottom-[-1px] w-full h-full" preserveAspectRatio="none">
+          {/* Layer 1: Semi-transparent Peach */}
+          <path
+            d="M0,40 C480,100 960,0 1440,40 L1440,120 L0,120 Z"
+            fill="#FFC48C"
+            fillOpacity="0.3"
+          />
+          {/* Layer 2: Soft Ivory */}
+          <path
+            d="M0,60 C360,10 1080,120 1440,60 L1440,120 L0,120 Z"
+            fill="#FFF5EC"
+            fillOpacity="0.5"
+          />
+          {/* Layer 3: Main Base Wave */}
+          <path
+            d="M0,80 C480,130 960,30 1440,80 L1440,120 L0,120 Z"
+            fill="#FFF5EC"
+          />
+        </svg>
+      </div>
+
       <motion.section
+        id="process"
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.1 }}
         variants={revealVariants}
-        className="pt-4 pb-32 px-6 md:px-12 bg-[#FAF9F6] relative overflow-hidden"
+        className="pt-0 pb-12 relative overflow-hidden bg-gradient-to-b from-[#FFF5EC] via-[#FFD8B1]/20 to-[#FFF5EC] scroll-mt-24"
       >
         <FloatingShapes />
+        {/* Background Atmosphere for Timeline */}
+        <div className="absolute inset-0 pointer-events-none">
+          {/* Subtle Eco-Grid Pattern */}
+          <div className="absolute inset-0 opacity-[0.05]"
+            style={{
+              backgroundImage: 'radial-gradient(#1E3A47 0.5px, transparent 0.5px)',
+              backgroundSize: '30px 30px',
+              maskImage: 'linear-gradient(to bottom, black, transparent)'
+            }} />
 
-        <div className="max-w-[1400px] mx-auto relative z-10">
-          <SectionHeader
-            badge="THE PROCESS"
-            title="How it works"
+          {/* Layered Sunset Atmospheric Glows */}
+          <div className="absolute top-[20%] left-[-15%] w-[800px] h-[800px] bg-orange-300/25 blur-[140px] rounded-full" />
+          <div className="absolute bottom-[10%] right-[-10%] w-[900px] h-[900px] bg-amber-200/30 blur-[160px] rounded-full animate-pulse" style={{ animationDuration: '10s' }} />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1000px] bg-[#FFC48C]/15 blur-[180px] rounded-full" />
+        </div>
+        <Timeline
+          data={timelineData}
+          badge="STRATEGIC JOURNEY"
+          title={
+            <>
+              How it <span className="highlight-premium">works</span>
+            </>
+          }
+          subline="Your journey to becoming a top-tier tutor starts here. Follow these simple steps to launch your workspace."
+        />
+      </motion.section>
+
+      <div className="relative h-24 w-full -mt-12 mb-[-1px] z-20 pointer-events-none overflow-hidden">
+        {/* Layered Liquid Waves - Timeline to Form Transition */}
+        <svg viewBox="0 0 1440 120" className="absolute bottom-[-1px] w-full h-full" preserveAspectRatio="none">
+          <path
+            d="M0,60 C480,0 960,120 1440,60 L1440,120 L0,120 Z"
+            fill="#FFF5EC"
+            fillOpacity="0.4"
           />
+          <path
+            d="M0,80 C360,140 1080,20 1440,80 L1440,120 L0,120 Z"
+            fill="#FFD8B1"
+            fillOpacity="0.2"
+          />
+          <path
+            d="M0,100 C480,50 960,150 1440,100 L1440,120 L0,120 Z"
+            fill="#FFF5EC"
+          />
+        </svg>
+      </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch mt-16 relative">
-            <JourneyStep
-              id="01"
-              title="Submit Idea"
-              desc="Validate real learner demand using platform insights and data signals."
-              icon={Lightbulb}
-              isLast={false}
-            />
-            <JourneyStep
-              id="02"
-              title="Design Syllabus"
-              desc="Co-create your syllabus with curriculum experts and AI-powered guidance."
-              icon={PenTool}
-              isLast={false}
-            />
-            <JourneyStep
-              id="03"
-              title="Launch & Earn"
-              desc="Launch your course, track performance, and grow earnings with real-time insights."
-              icon={Rocket}
-              isLast={true}
-            />
-          </div>
-        </div>
-      </motion.section>
-
-      {/* Intelligence Spotlight */}
-      <motion.section
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.1 }}
-        variants={revealVariants}
-        className="py-12 px-6 md:px-12 bg-white relative overflow-hidden"
-      >
-        <div className="max-w-6xl mx-auto bg-[#B24531] rounded-[2rem] py-16 px-8 relative overflow-hidden shadow-2xl">
-          <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-          </div>
-
-          <div className="max-w-4xl mx-auto text-center relative z-10 text-white">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              className="inline-flex items-center gap-2 mb-6"
-            >
-              <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60">Intelligence Spotlight</span>
-            </motion.div>
-
-            <motion.h3
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-2xl md:text-3xl lg:text-4xl font-black leading-tight tracking-tight"
-            >
-              “Know who needs attention, when to intervene, and how to follow up — automatically.”
-            </motion.h3>
-
-            <motion.p
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-              className="mt-8 text-[10px] font-bold tracking-[0.3em] uppercase text-white/40"
-            >
-              AI-Driven Tutor Dashboard
-            </motion.p>
-          </div>
-        </div>
-      </motion.section>
 
       {/* Application Form Section */}
       <motion.section
-        id="apply-form"
+        id="apply"
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, amount: 0.05 }}
         variants={revealVariants}
-        className="py-24 px-6 md:px-12 bg-[#A64632] relative scroll-mt-20"
+        className="pt-4 pb-24 px-6 md:px-12 relative scroll-mt-24 bg-gradient-to-b from-[#FFF5EC] to-[#FFD8B1]/30"
       >
         <div className="max-w-[1400px] mx-auto relative z-10">
           <SectionHeader
             badge="Join the Team"
-            title="Ready to make an impact?"
+            title={
+              <>
+                Ready to make an <span className="highlight-premium">impact</span>?
+              </>
+            }
             subline="Fill out the form below to apply. We review every application personally."
-            light
           />
 
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="bg-[#FDFCF0] rounded-[3rem] p-8 md:p-16 shadow-2xl shadow-black/20 border border-white/10"
+            className="bg-white rounded-[3rem] p-8 md:p-16 shadow-2xl shadow-black/20 border border-white/10"
           >
             <form onSubmit={handleSubmit} className="space-y-16">
               {/* Personal Details */}
@@ -897,7 +627,7 @@ const BecomeTutor: React.FC = () => {
                         name={field.name}
                         value={(formData as any)[field.name]}
                         onChange={handleChange}
-                        className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                        className="w-full bg-white border-2 border-[#1E3A47]/10 focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                         placeholder={field.placeholder}
                       />
                     </div>
@@ -920,7 +650,7 @@ const BecomeTutor: React.FC = () => {
                       name="expertiseArea"
                       value={formData.expertiseArea}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                      className="w-full bg-white border-2 border-[#1E3A47]/10 focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. LLMs, Python, Computer Vision"
                     />
                   </div>
@@ -931,7 +661,7 @@ const BecomeTutor: React.FC = () => {
                       name="yearsExperience"
                       value={formData.yearsExperience}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                      className="w-full bg-white border-2 border-[#1E3A47]/10 focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. 5"
                     />
                   </div>
@@ -942,7 +672,7 @@ const BecomeTutor: React.FC = () => {
                       name="courseTitle"
                       value={formData.courseTitle}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
+                      className="w-full bg-white border-2 border-[#1E3A47]/10 focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all"
                       placeholder="e.g. Advanced RAG Systems"
                     />
                   </div>
@@ -953,7 +683,7 @@ const BecomeTutor: React.FC = () => {
                         name="availability"
                         value={formData.availability}
                         onChange={handleChange}
-                        className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all cursor-pointer"
+                        className="w-full bg-white border-2 border-[#1E3A47]/10 focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all cursor-pointer"
                       >
                         <option value="">Select availability</option>
                         <option value="immediate">Immediately</option>
@@ -986,7 +716,7 @@ const BecomeTutor: React.FC = () => {
                       rows={4}
                       value={formData.courseDescription}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
+                      className="w-full bg-white border-2 border-[#1E3A47]/10 focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
                       placeholder="Briefly describe the curriculum..."
                     />
                   </div>
@@ -997,7 +727,7 @@ const BecomeTutor: React.FC = () => {
                       rows={4}
                       value={formData.targetAudience}
                       onChange={handleChange}
-                      className="w-full bg-white border-2 border-transparent focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
+                      className="w-full bg-white border-2 border-[#1E3A47]/10 focus:border-[#B24531]/20 rounded-2xl px-6 py-4 text-[18px] text-[#1E3A47] font-bold placeholder-[#1E3A47]/20 focus:outline-none focus:ring-4 focus:ring-[#B24531]/5 transition-all resize-none"
                       placeholder="Who is this for?"
                     />
                   </div>
@@ -1051,7 +781,7 @@ const BecomeTutor: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg rounded-[3rem] bg-[#FDFCF0] p-12 shadow-2xl text-left border border-[#1E3A47]/5"
+              className="relative w-full max-w-lg rounded-[3rem] bg-white p-12 shadow-2xl text-left border border-[#1E3A47]/5"
             >
               <button
                 type="button"
@@ -1129,17 +859,7 @@ const BecomeTutor: React.FC = () => {
       </AnimatePresence>
 
       {/* Footer Branding */}
-      <motion.footer
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, amount: 0.1 }}
-        variants={revealVariants}
-        className="py-12 bg-[#FDFCF0] text-center border-t border-[#1E3A47]/5"
-      >
-        <p className="text-[10px] font-black uppercase tracking-[0.5em] text-[#1E3A47]/20">
-          Ottolearn Tutor Platform © 2026
-        </p>
-      </motion.footer>
+      <TutorFooter />
     </div>
   );
 };
