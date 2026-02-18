@@ -255,24 +255,23 @@ const FloatingCampusHero: React.FC<FloatingCampusHeroProps> = ({ onApply, onLogi
               transition={{ duration: 0.8, delay: 0.2 }}
               className="font-serif text-5xl md:text-7xl lg:text-8xl text-white mb-6 leading-tight drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)] tracking-tight"
             >
-              The Intelligent <br /><span className="bg-gradient-to-r from-[#ffd700] to-[#ff9d76] bg-clip-text text-transparent italic">Command Center</span><br /> for Tutors.
+              Grow Your Teaching <br /><span className="bg-gradient-to-r from-[#ffd700] to-[#ff9d76] bg-clip-text text-transparent italic">Without Growing Your Workload.</span>
             </motion.h1>
 
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.4 }}
-              className="text-lg md:text-xl text-white/90 mb-10 leading-relaxed font-medium"
+              className="text-lg md:text-xl text-white/90 mb-10 leading-relaxed font-medium max-w-3xl mx-auto"
             >
-              Unified enrollments. Clear progress tracking. <br className="hidden md:block" />
-              Direct action tools. AI Copilot assistance.
+              Ottolearn integrates student tracking, engagement, and growth workflows into a high-performance command layer. Focus on teaching—let the system handle the scale.
             </motion.p>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.6 }}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4"
+              className="flex flex-col sm:flex-row items-center justify-center gap-6"
             >
               <motion.button
                 whileHover={{ scale: 1.05, y: -3, boxShadow: "0 0 50px rgba(255,255,255,0.6)" }}
@@ -280,16 +279,17 @@ const FloatingCampusHero: React.FC<FloatingCampusHeroProps> = ({ onApply, onLogi
                 onClick={onApply}
                 className="bg-white text-[#2b244d] px-10 py-5 rounded-full font-black text-lg shadow-[0_0_30px_rgba(255,255,255,0.4)] flex items-center gap-2 transition-all"
               >
-                Apply as a Tutor
+                Get Early Access
                 <ArrowRight className="w-5 h-5" />
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05, y: -3, backgroundColor: "rgba(255,255,255,0.2)" }}
                 whileTap={{ scale: 0.95 }}
-                onClick={onLogin}
+                onClick={() => window.open('https://calendly.com', '_blank')}
                 className="px-10 py-5 rounded-full font-black text-lg text-white border-2 border-white/50 backdrop-blur-sm transition-all flex items-center gap-2"
               >
-                Tutor Login
+                Watch a Demo
+                <Sparkles className="w-5 h-5" />
               </motion.button>
             </motion.div>
           </motion.div>

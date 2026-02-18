@@ -1,0 +1,32 @@
+# Version Control
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Build Artifacts
+**/node_modules/
+**/dist/
+**/build/
+**/.vite/
+
+# Environment Files
+**/.env
+**/.env.*
+!.env.example
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Docker files
+docker-compose*.yml
+.dockerignore

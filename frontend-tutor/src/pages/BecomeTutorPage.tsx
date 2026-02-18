@@ -417,7 +417,7 @@ const BecomeTutor: React.FC = () => {
 
       {/* Hero Section */}
       <FloatingCampusHero
-        onApply={() => document.getElementById('apply-form')?.scrollIntoView({ behavior: 'smooth' })}
+        onApply={() => document.getElementById('apply')?.scrollIntoView({ behavior: 'smooth' })}
         onLogin={openLoginModal}
       />
 

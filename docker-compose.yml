@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  # Database Service
+  db:
+    image: postgres:15-alpine
+    container_name: otto-postgres
+    restart: unless-stopped
+    ports:
+      - "6082:5432"
+    environment:
+      POSTGRES_DB: course_platform
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - otto-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U admin -d course_platform" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  api:
+    build:
+      context: ./backend-tutor
+      dockerfile: Dockerfile
+    container_name: otto-backend
+    restart: unless-stopped
+    ports:
+      - "6081:4000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://admin:password123@db:5432/course_platform?schema=public
+      - PORT=4000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - otto-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Frontend Application
+  frontend:
+    build:
+      context: ./frontend-tutor
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:6081/api
+    container_name: otto-frontend
+    restart: unless-stopped
+    ports:
+      - "6080:80"
+    depends_on:
+      - api
+    networks:
+      - otto-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  otto-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
