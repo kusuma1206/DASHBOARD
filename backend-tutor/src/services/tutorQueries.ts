@@ -127,7 +127,7 @@ export async function getLearnerProgress(params: {
     // Find learner by email
     const user = await prisma.user.findUnique({
         where: { email: learnerEmail.toLowerCase() },
-        select: { userId: true, fullName: true, email: true },
+        select: { userId: true, fullName: true, email: true, createdAt: true },
     });
 
     if (!user) {

@@ -94,7 +94,7 @@ export async function upsertPersonaProfile(params: {
     },
     update: {
       personaKey: params.personaKey,
-      rawAnswers: params.rawAnswers,
+      rawAnswers: params.rawAnswers as Prisma.InputJsonValue,
       analysisSummary: params.analysisSummary,
       analysisVersion: params.analysisVersion,
     },
@@ -102,7 +102,7 @@ export async function upsertPersonaProfile(params: {
       userId: params.userId,
       courseId: params.courseId,
       personaKey: params.personaKey,
-      rawAnswers: params.rawAnswers,
+      rawAnswers: params.rawAnswers as Prisma.InputJsonValue,
       analysisSummary: params.analysisSummary,
       analysisVersion: params.analysisVersion,
     },

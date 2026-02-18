@@ -185,7 +185,7 @@ export function analyzeStruggle(events: LearnerStatusRow[]): StruggleAnalysis {
   const signals: string[] = [];
 
   // 1. SIGNAL DERIVATION
-  
+
   // Quiz failures and retries
   const quizFailures = events.filter(e => e.eventType === 'quiz.fail').length;
   const quizRetries = events.filter(e => e.eventType === 'quiz.retry').length;
@@ -213,7 +213,7 @@ export function analyzeStruggle(events: LearnerStatusRow[]): StruggleAnalysis {
   if (sessionStarts > 3) signals.push('Fragmented session pattern');
 
   // 2. SCORING MODEL (WEIGHTS)
-  
+
   // No Understanding (Cognitive Friction)
   scores['No Understanding'] += quizFailures * 25;
   scores['No Understanding'] += quizRetries * 10;
@@ -268,7 +268,7 @@ export function analyzeStruggle(events: LearnerStatusRow[]): StruggleAnalysis {
   else if (maxScore > 30) severity = 'Medium';
 
   // 5. CONTENT FRICTION REDEFINITION
-  const contentFriction = dominant === 'No Understanding' || dominant === 'Not Engaging';
+  const contentFriction = (dominant as string) === 'No Understanding' || (dominant as string) === 'Not Engaging';
 
   // 6. HUMAN-READABLE EXPLANATION
   const explanations: Record<StruggleType, string> = {
