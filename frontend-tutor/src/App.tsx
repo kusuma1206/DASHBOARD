@@ -10,6 +10,9 @@ import NotFound from "@/pages/not-found";
 import BecomeTutorPage from "@/pages/BecomeTutorPage";
 import TutorDashboardPage from "@/pages/TutorDashboardPage";
 import TutorLoginPage from "@/pages/TutorLoginPage";
+import CoursePlayerPage from "@/pages/CoursePlayerPage";
+import AssessmentPage from "@/pages/AssessmentPage";
+import EnrollmentPage from "@/pages/EnrollmentPage";
 function Router() {
   return (
     <Switch>
@@ -18,6 +21,11 @@ function Router() {
       <Route path="/tutors/login" component={TutorLoginPage} />
       <Route path="/tutors" component={TutorDashboardPage} />
       <Route path="/tutor" component={TutorDashboardPage} />
+
+      {/* Learner Routes */}
+      <Route path="/course/:courseId/learn/:lessonSlug" component={CoursePlayerPage} />
+      <Route path="/assessment" component={AssessmentPage} />
+      <Route path="/enroll" component={EnrollmentPage} />
 
       {/* Default route - Tutor Landing Page */}
       <Route path="/" component={BecomeTutorPage} />

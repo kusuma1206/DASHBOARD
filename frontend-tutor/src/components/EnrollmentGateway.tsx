@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Star, Clock, Users, Trophy, Play, Github } from 'lucide-react';
-import courseHeroImage from '@assets/generated_images/Course_hero_background_image_dee9776b.png';
-import femaleInstructorImage from '@assets/generated_images/Female_instructor_portrait_fa1e47b3.png';
-import testimonialImage from '@assets/generated_images/Student_testimonial_photo_5b78ee7e.png';
+import courseHeroImage from '@/assets/images/Course_hero_background_image_dee9776b.png';
+import femaleInstructorImage from '@/assets/images/Female_instructor_portrait_fa1e47b3.png';
+import testimonialImage from '@/assets/images/Student_testimonial_photo_5b78ee7e.png';
 
 interface CourseInfo {
   title: string;
@@ -84,11 +84,11 @@ export default function EnrollmentGateway({
               <Badge className="mb-4 bg-white/20 backdrop-blur-sm" data-testid="badge-course-category">
                 Professional Development
               </Badge>
-              
+
               <h1 className="text-4xl lg:text-5xl font-bold mb-6 leading-tight" data-testid="title-course">
                 {courseInfo.title}
               </h1>
-              
+
               <p className="text-lg mb-8 text-white/90 leading-relaxed" data-testid="text-course-description">
                 {courseInfo.description}
               </p>
@@ -169,7 +169,7 @@ export default function EnrollmentGateway({
                     <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
                     <TabsTrigger value="signup" data-testid="tab-signup">Sign Up</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="login" className="space-y-4">
                     <form onSubmit={handleLogin} className="space-y-4" data-testid="form-login">
                       <div>
@@ -206,7 +206,7 @@ export default function EnrollmentGateway({
                       </Button>
                     </form>
                   </TabsContent>
-                  
+
                   <TabsContent value="signup" className="space-y-4">
                     <form onSubmit={handleSignup} className="space-y-4" data-testid="form-signup">
                       <div>
@@ -278,7 +278,7 @@ export default function EnrollmentGateway({
                       <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     <Button
                       variant="outline"
