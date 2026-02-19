@@ -11,9 +11,9 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
-import unclearStudentProgressImg from "@/assets/unclear_student_progress.png";
-import delayedRiskDetectionImg from "@/assets/delayed_risk_detection.png";
-import manualFollowUpsImg from "@/assets/manual_follow_ups.png";
+import unclearStudentProgressImg from "@/assets/images/unclear_student_progress.png";
+import delayedRiskDetectionImg from "@/assets/images/delayed_risk_detection.png";
+import manualFollowUpsImg from "@/assets/images/manual_follow_ups.png";
 
 interface Challenge {
   id: number;
